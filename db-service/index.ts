@@ -79,7 +79,7 @@ function setupDatabaseRoutes() {
       },
       {
         body: t.Object({
-          model: t.Union([t.Literal("user")]),
+          model: t.Union([t.Literal("user"), t.Literal("organisation"), t.Literal("organisationMember")]),
           operation: t.Union([
             t.Literal("getOne"),
             t.Literal("getMany"),

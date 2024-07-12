@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import ModelClass  from "./ModelClass";
+import ModelClass from "./ModelClass";
 
 export interface UserInput {
   name: string;
@@ -8,9 +8,12 @@ export interface UserInput {
   image?: string;
   role: "admin" | "user";
   requiresReset: boolean;
+  organisationId: string;
+  organisationRole: "admin" | "user" | "moderator";
 }
 
-export interface User extends UserInput {
+export interface User
+  extends Omit<UserInput, "organisationId" | "organisationRole"> {
   id: string;
   emailVerified?: boolean;
   createdAt: Date;
@@ -56,6 +59,48 @@ export default class UserModel extends ModelClass<User, SantisedUser> {
       image: data.image,
       role: data.role,
     };
+  }
+
+  //Override the create function to add the user to the organisation
+  async create(data: UserInput): Promise<SantisedUser | { error: string }> {
+    return await this.knex.transaction(async (tx) => {
+      try {
+        const [user] = await tx(this.tableName)
+          .insert({
+            name: data.name,
+            email: data.email,
+            password: data.password,
+            image: data.image,
+            role: data.role,
+            requiresReset: data.requiresReset,
+          })
+          .returning("*");
+
+        if (!user) {
+          throw new Error("Failed to create user");
+        }
+
+        //Add the user to the organisation
+        const [membership] = await tx("webslurm2_organisation_members").insert({
+          organisationId: data.organisationId,
+          userId: user.id,
+          role: data.organisationRole,
+        });
+
+        if (!membership) {
+          throw new Error("Failed to add user to organisation");
+        }
+
+        return this.sanitiseData(user);
+      } catch (e) {
+        tx.rollback();
+        console.error(e);
+        if (this.isDuplicateKeyError(e as Error)) {
+          return { error: "User already exists" };
+        }
+        return { error: "Internal server error" };
+      }
+    });
   }
 
   async getUserByEmail(email: string): Promise<User | { error: string }> {
