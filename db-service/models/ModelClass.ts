@@ -1,13 +1,11 @@
 import type { Knex } from "knex";
+import { ErrorType } from "../helpers/errorHandler";
 
 export default abstract class ModelClass<T extends {}, SanitisedT = T> {
-  //Provides the database instance and the table name for the model
   constructor(protected knex: Knex, protected tableName: string) {}
 
-  //Returns the keys to use when querying the database. Allows for both a singular primary key and composite keys
   protected abstract getKeys(identifier: Partial<T>): Partial<T>;
 
-  //Santise function, so that for certain types of data, such as users, we can remove sensitive data
   protected abstract sanitiseData(data: T): SanitisedT;
   protected abstract sanitiseData(data: T[]): SanitisedT[];
   protected abstract sanitiseData(data: undefined): undefined;
@@ -15,54 +13,41 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
     data: T | T[] | undefined
   ): SanitisedT | SanitisedT[] | undefined;
 
-  //Return the first result with the given key from the database
-  async getOne(
-    identifier: Partial<T>
-  ): Promise<SanitisedT | { error: string }> {
+  async getOne(identifier: Partial<T>): Promise<SanitisedT> {
     const result = await this.knex(this.tableName)
       .where(this.getKeys(identifier))
       .first();
-    return result ? this.sanitiseData(result) : { error: "Record not found" };
+    if (!result) {
+      throw new Error(ErrorType.NOT_FOUND);
+    }
+    return this.sanitiseData(result);
   }
 
-  //Return all results with the given key from the database
-  async getMany(
-    identifier: Partial<T> | undefined
-  ): Promise<SanitisedT[] | { error: string }> {
+  async getMany(identifier: Partial<T> | undefined): Promise<SanitisedT[]> {
     let query = this.knex(this.tableName);
     query = identifier ? query.where(this.getKeys(identifier)) : query;
     const results = await query.select();
     if (results.length === 0) {
-      return { error: "No records found" };
+      throw new Error(ErrorType.NOT_FOUND);
     }
     return results.map((result) => this.sanitiseData(result));
   }
 
-  async getAll(): Promise<SanitisedT[] | { error: string }> {
+  async getAll(): Promise<SanitisedT[]> {
     const results = await this.knex(this.tableName).select();
     if (results.length === 0) {
-      return { error: "No records found" };
+      throw new Error(ErrorType.NOT_FOUND);
     }
     return results.map((result) => this.sanitiseData(result));
   }
 
   async create(
     data: Omit<T, "id" | "updatedAt" | "createdAt">
-  ): Promise<SanitisedT | { error: string }> {
-    try {
-      const [inserted] = await this.knex(this.tableName)
-        .insert(data)
-        .returning("*");
-      return this.sanitiseData(inserted);
-    } catch (e) {
-      //todo implement proper logging once logging service is done
-      console.error(e);
-      if (this.isDuplicateKeyError(e as Error)) {
-        return { error: "Already exists" };
-      }
-
-      return { error: "Internal server error" };
-    }
+  ): Promise<SanitisedT> {
+    const [inserted] = await this.knex(this.tableName)
+      .insert(data)
+      .returning("*");
+    return this.sanitiseData(inserted);
   }
 
   async update(data: Partial<T>): Promise<SanitisedT> {
@@ -70,36 +55,20 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
       .where(this.getKeys(data))
       .update(data)
       .returning("*");
+    if (!updated) {
+      throw new Error(ErrorType.NOT_FOUND);
+    }
     return this.sanitiseData(updated);
   }
 
   async delete(
     identifier: Partial<T>
-  ): Promise<
-    { keys: Partial<T>; message: "Record deleted" } | { error: string }
-  > {
-    try {
-      const keys = this.getKeys(identifier);
-      const affected = await this.knex(this.tableName).where(keys).delete();
-      if (affected === 0) {
-        return { error: "Record not found" };
-      }
-      return { keys, message: "Record deleted" };
-    } catch (e) {
-      console.error(e);
-
-      return { error: "Internal server error" };
+  ): Promise<{ keys: Partial<T>; message: string }> {
+    const keys = this.getKeys(identifier);
+    const affected = await this.knex(this.tableName).where(keys).delete();
+    if (affected === 0) {
+      throw new Error(ErrorType.NOT_FOUND);
     }
-  }
-
-  protected isDuplicateKeyError(e: Error): boolean {
-    const errorString = e.toString().toLowerCase();
-    return (
-      errorString.includes("duplicate") ||
-      errorString.includes("unique constraint") ||
-      errorString.includes("uniqueviolation") ||
-      errorString.includes("primary key constraint") ||
-      (e as any).code === "23505" // Common PostgreSQL code for unique violation
-    );
+    return { keys, message: "Record deleted" };
   }
 }

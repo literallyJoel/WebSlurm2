@@ -1,6 +1,8 @@
 import { Knex } from "knex";
 import ModelClass from "./ModelClass";
-import { TABLE_NAMES } from "../config/schema";
+import { TABLE_NAMES } from "../service-config/schema";
+import { ErrorType } from "../helpers/errorHandler";
+
 export interface UserInput {
   name: string;
   email: string;
@@ -8,8 +10,9 @@ export interface UserInput {
   image?: string;
   role: "admin" | "user";
   requiresReset: boolean;
-  organisationId: string;
-  organisationRole: "admin" | "user" | "moderator";
+  initial?: boolean;
+  organisationId?: string;
+  organisationRole?: "admin" | "user" | "moderator";
 }
 
 export interface User
@@ -61,8 +64,7 @@ export default class UserModel extends ModelClass<User, SantisedUser> {
     };
   }
 
-  //Override the create function to add the user to the organisation
-  async create(data: UserInput): Promise<SantisedUser | { error: string }> {
+  async create(data: UserInput): Promise<SantisedUser> {
     return await this.knex.transaction(async (tx) => {
       try {
         const [user] = await tx(this.tableName)
@@ -77,49 +79,38 @@ export default class UserModel extends ModelClass<User, SantisedUser> {
           .returning("*");
 
         if (!user) {
-          throw new Error("Failed to create user");
+          throw new Error(ErrorType.INTERNAL_SERVER_ERROR);
         }
 
-        //Add the user to the organisation
-        const [membership] = await tx("webslurm2_organisation_members").insert({
-          organisationId: data.organisationId,
-          userId: user.id,
-          role: data.organisationRole,
-        });
-
-        if (!membership) {
-          throw new Error("Failed to add user to organisation");
+        if (data.organisationId) {
+          await tx("webslurm2_organisation_members").insert({
+            organisationId: data.organisationId,
+            userId: user.id,
+            role: data.organisationRole,
+          });
         }
 
         return this.sanitiseData(user);
-      } catch (e) {
+      } catch (error) {
         tx.rollback();
-        console.error(e);
-        if (this.isDuplicateKeyError(e as Error)) {
-          return { error: "User already exists" };
-        }
-        return { error: "Internal server error" };
+        throw error;
       }
     });
   }
 
-  async getUserByEmail(email: string): Promise<User | { error: string }> {
-    try {
-      return await this.knex(this.tableName).where({ email }).first();
-    } catch (e) {
-      if (e instanceof Error) {
-        if (
-          e.message.includes("duplicate key value violates unique constraint")
-        ) {
-          return { error: "User already exists" };
-        }
-      }
-      console.error(e);
-      return { error: "Internal server error" };
+  async getUserByEmail(email: string): Promise<User> {
+    const user = await this.knex(this.tableName).where({ email }).first();
+    if (!user) {
+      throw new Error(ErrorType.NOT_FOUND);
     }
+    return user;
   }
 
-  async getUnsanitisedUser(id: string): Promise<User | { error: string }> {
-    return await this.knex(this.tableName).where({ id }).first();
+  async getUnsanitisedUser(id: string): Promise<User> {
+    const user = await this.knex(this.tableName).where({ id }).first();
+    if (!user) {
+      throw new Error(ErrorType.NOT_FOUND);
+    }
+    return user;
   }
 }

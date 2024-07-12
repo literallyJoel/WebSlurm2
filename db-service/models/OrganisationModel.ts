@@ -1,6 +1,8 @@
 import { Knex } from "knex";
-import  ModelClass from "./ModelClass";
-import { TABLE_NAMES } from "../config/schema";
+import ModelClass from "./ModelClass";
+import { TABLE_NAMES } from "../service-config/schema";
+import { ErrorType } from "../helpers/errorHandler";
+
 export interface OrganisationInput {
   name: string;
   userId: string;
@@ -36,17 +38,16 @@ export default class OrganisationModel extends ModelClass<Organisation> {
     return data;
   }
 
-  //Override the default create to add the user to the members table
   async create(
     data: Omit<OrganisationInput, "id" | "updatedAt" | "createdAt">
-  ): Promise<OrganisationWithMember | { error: string }> {
+  ): Promise<OrganisationWithMember> {
     return await this.knex.transaction(async (tx) => {
       try {
         const [organisation] = await tx(this.tableName)
-          .insert(data.name)
+          .insert({ name: data.name })
           .returning("*");
         if (!organisation) {
-          throw new Error("Failed to fetch organisation id");
+          throw new Error(ErrorType.INTERNAL_SERVER_ERROR);
         }
 
         await tx("ws2_organisation_members").insert({
@@ -56,13 +57,9 @@ export default class OrganisationModel extends ModelClass<Organisation> {
         });
 
         return { ...organisation, userId: data.userId };
-      } catch (e) {
+      } catch (error) {
         tx.rollback();
-        console.error(e);
-        if (this.isDuplicateKeyError(e as Error)) {
-          return { error: "Already exists" };
-        }
-        return { error: "Internal server error" };
+        throw error;
       }
     });
   }

@@ -1,5 +1,5 @@
 import Elysia, { t } from "elysia";
-import { configRoutes } from "./routes/config";
+import { serviceConfigRoutes } from "./routes/service-config";
 import {
   getDatabase,
   initialiseDatabase,
@@ -10,6 +10,8 @@ import { getRuntimeConfig } from "./helpers/config";
 import { getModelClass } from "./helpers/models";
 import UserModel from "./models/UserModel";
 import { COLOURS } from "./helpers/colours";
+import { transaction } from "./helpers/transaction";
+import { handleError, ErrorType } from "./helpers/errorHandler";
 
 let app: Elysia;
 
@@ -33,51 +35,39 @@ function setupDatabaseRoutes() {
         const modelClass = getModelClass(model);
 
         if (!modelClass) {
-          set.status = 400;
-          return "Bad Request";
+          const { error, status } = handleError(
+            new Error(ErrorType.BAD_REQUEST)
+          );
+          set.status = status;
+          return { error };
         }
 
-        switch (operation) {
-          case "getOne": {
-            const result = await modelClass.getOne(params);
-            if ("error" in result && result.error === "Record not found") {
-              set.status = 404;
-              return "Record not found";
-            }
-            return result;
+        try {
+          switch (operation) {
+            case "getOne":
+              return await modelClass.getOne(params);
+            case "getMany":
+              return await modelClass.getMany(params);
+            case "getAll":
+              return await modelClass.getAll();
+            case "create":
+              return await modelClass.create(params);
+            case "update":
+              return await modelClass.update(params);
+            case "delete":
+              return await modelClass.delete(params);
+            case "getUserByEmail":
+              if (!(modelClass instanceof UserModel)) {
+                throw new Error(ErrorType.BAD_REQUEST);
+              }
+              return await modelClass.getUserByEmail(params.email);
+            default:
+              throw new Error(ErrorType.BAD_REQUEST);
           }
-          case "getMany": {
-            const result = await modelClass.getMany(params);
-            if ("error" in result && result.error === "No records found") {
-              set.status = 404;
-              return "No records found";
-            }
-            return result;
-          }
-          case "getAll": {
-            const result = await modelClass.getAll();
-            if ("error" in result && result.error === "No records found") {
-              set.status = 404;
-              return "No records found";
-            }
-            return result;
-          }
-          case "create":
-            return await modelClass.create(params);
-          case "update":
-            return await modelClass.update(params);
-          case "delete":
-            return await modelClass.delete(params);
-          //This is specific to the user model, but is common enough it makese sense to include it here.
-          case "getUserByEmail":
-            if (!(modelClass instanceof UserModel)) {
-              set.status = 400;
-              return "Bad Request";
-            }
-            return await modelClass.getUserByEmail(params.email);
-          default:
-            set.status = 400;
-            return "Bad Request";
+        } catch (error) {
+          const { error: errorMessage, status } = handleError(error);
+          set.status = status;
+          return { error: errorMessage };
         }
       },
       {
@@ -86,6 +76,7 @@ function setupDatabaseRoutes() {
             t.Literal("user"),
             t.Literal("organisation"),
             t.Literal("organisationMember"),
+            t.Literal("config"),
           ]),
           operation: t.Union([
             t.Literal("getOne"),
@@ -99,19 +90,62 @@ function setupDatabaseRoutes() {
           params: t.Any({ default: {} }),
         }),
       }
+    )
+    .post(
+      "/transaction",
+      async ({ body, set }) => {
+        const { operations } = body;
+        try {
+          return await transaction(operations);
+        } catch (error) {
+          const { error: errorMessage, status } = handleError(error);
+          set.status = status;
+          return { error: errorMessage };
+        }
+      },
+      {
+        body: t.Object({
+          operations: t.Array(
+            t.Object({
+              order: t.Number(),
+              model: t.Union([
+                t.Literal("user"),
+                t.Literal("organisation"),
+                t.Literal("organisationMember"),
+                t.Literal("config"),
+              ]),
+              operation: t.Union([
+                t.Literal("getOne"),
+                t.Literal("getMany"),
+                t.Literal("getAll"),
+                t.Literal("create"),
+                t.Literal("update"),
+                t.Literal("delete"),
+                t.Literal("getUserByEmail"),
+              ]),
+              params: t.Union([
+                t.Any(),
+                t.Object({
+                  $ref: t.String(),
+                  field: t.String(),
+                }),
+              ]),
+              resultKey: t.Optional(t.String()),
+              return: t.Optional(t.Array(t.String())),
+            })
+          ),
+        }),
+      }
     );
 }
-/*
-Adds the db configuration routes. Added prior to all
-other routes so we can ensure the databasee is configured
-before any other requests are made.
-*/
+
 function setupConfigRoutes() {
-  app = new Elysia().use((app) => configRoutes(app, setupDatabaseRoutes));
+  app = new Elysia().use((app) =>
+    serviceConfigRoutes(app, setupDatabaseRoutes)
+  );
 }
 
 export async function startServer() {
-  //If the database type is set, we check it's valid
   const dbType = process.env.DATABASE_TYPE;
   const allowedTypes = ["sqlite", "postgres", "sqlserver", "oracledb"];
   if (dbType && !allowedTypes.includes(dbType)) {
@@ -121,9 +155,7 @@ export async function startServer() {
     process.exit(1);
   }
 
-  //Setup the config routes
   setupConfigRoutes();
-  //Initialise the database if the environment variables are set
   if (dbType && process.env.DATABASE_CONNECTION_STRING) {
     await initialiseDatabase(dbType, process.env.DATABASE_CONNECTION_STRING);
   }
@@ -136,12 +168,12 @@ export async function startServer() {
     console.log(
       `${COLOURS.green}Database Service Started on ${COLOURS.magenta}${
         server.url
-      }.${COLOURS.reset}${
+      }${COLOURS.reset}\n${
         isDatabaseConfigured()
           ? `${COLOURS.green}Database is configured with type ${
               COLOURS.magenta
-            }${getRuntimeConfig().dbType}.${COLOURS.reset}`
-          : `${COLOURS.yellow}Awaiting configuration.\nSend a POST request to ${server.url}config/init with dbType and connectionString in the body.\nAllowed types are sqlite, postgres, sqlserver, oracledb.\nIf using SQLite, connectionString should be the filepath for the sqlite file.${COLOURS.reset}`
+            }${getRuntimeConfig().dbType}${COLOURS.reset}`
+          : `${COLOURS.yellow}Awaiting configuration.\nSend a POST request to ${server.url}service-config/init with dbType and connectionString in the body.\nAllowed types are sqlite, postgres, sqlserver, oracledb.\nIf using SQLite, connectionString should be the filepath for the sqlite file.${COLOURS.reset}`
       }`
     );
   });

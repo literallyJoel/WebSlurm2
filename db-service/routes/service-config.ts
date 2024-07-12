@@ -2,14 +2,17 @@ import { Elysia, t } from "elysia";
 
 import { getRuntimeConfig, setRuntimeConfig } from "../helpers/config";
 import { getDatabase, initialiseDatabase } from "../helpers/db";
-import { restart } from "../helpers/misc";
+import { restart } from "../helpers/restart";
 import { COLOURS } from "../helpers/colours";
 
-export function configRoutes(app: Elysia, onDatabaseConfigured: () => void) {
+export function serviceConfigRoutes(
+  app: Elysia,
+  onDatabaseConfigured: () => void
+) {
   return (
     app
       //Used to configure the database during first time setup
-      .group("/config", (app) =>
+      .group("/service-config", (app) =>
         app
           .post(
             "/init",

@@ -1,6 +1,6 @@
 import { Knex } from "knex";
 import ModelClass from "./ModelClass";
-import { TABLE_NAMES } from "../config/schema";
+import { TABLE_NAMES } from "../service-config/schema";
 export interface OrganisationMember {
   organisationId: string;
   userId: string;

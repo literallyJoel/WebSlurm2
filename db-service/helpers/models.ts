@@ -2,6 +2,7 @@ import UserModel from "../models/UserModel";
 import OrganisationModel from "../models/OrganisationModel";
 import OrganisationMemberModel from "../models/OrganisationMemberModel";
 import { getDatabase } from "./db";
+import ConfigModel from "../models/ConfigModel";
 
 export function getModelClass(model: string) {
   const db = getDatabase();
@@ -18,6 +19,8 @@ export function getModelClass(model: string) {
       return new OrganisationModel(db);
     case "organisationMember":
       return new OrganisationMemberModel(db);
+    case "config":
+      return new ConfigModel(db);
     default:
       return null;
   }

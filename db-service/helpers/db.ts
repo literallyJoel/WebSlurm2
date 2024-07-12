@@ -1,7 +1,7 @@
 import Knex, { type Knex as TKnex } from "knex";
-import { getDbConfig } from "../config/database";
+import { getDbConfig } from "../service-config/database";
 import path from "path";
-import { createSchema } from "../config/schema";
+import { createSchema } from "../service-config/schema";
 import { COLOURS } from "./colours";
 
 let db: TKnex | null = null;
