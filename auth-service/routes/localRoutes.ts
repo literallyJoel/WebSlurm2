@@ -34,8 +34,8 @@ function generatePassword(length: number = 8) {
 
   return password;
 }
-export function localRoutes(app: Elysia) {
-  app.group("/local", (app) =>
+export async function localRoutes(app: Elysia) {
+  return app.group("/local", (app) =>
     app
       .post(
         "/register",

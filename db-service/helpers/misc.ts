@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
+import { COLOURS } from "./colours";
 export function restart() {
-  console.log("Restarting application...");
+  console.log(`${COLOURS.blue}Restarting application...${COLOURS.reset}`);
 
   // Spawn a new process
   const child = spawn(process.argv[0], process.argv.slice(1), {

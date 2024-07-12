@@ -1,6 +1,6 @@
 import { Knex } from "knex";
 import ModelClass from "./ModelClass";
-
+import { TABLE_NAMES } from "../config/schema";
 export interface OrganisationMember {
   organisationId: string;
   userId: string;
@@ -8,7 +8,7 @@ export interface OrganisationMember {
 }
 
 export default class OrganisationMemberModel extends ModelClass<OrganisationMember> {
-  constructor(knex: Knex, tableName = "ws2_organisation_members") {
+  constructor(knex: Knex, tableName = TABLE_NAMES.organisationMember) {
     super(knex, tableName);
   }
 

@@ -2,6 +2,7 @@ import Knex, { type Knex as TKnex } from "knex";
 import { getDbConfig } from "../config/database";
 import path from "path";
 import { createSchema } from "../config/schema";
+import { COLOURS } from "./colours";
 
 let db: TKnex | null = null;
 
@@ -9,11 +10,15 @@ export async function initialiseDatabase(
   dbType: string,
   connectionString: string
 ) {
-  console.log("Intialising database of type", dbType);
+  console.log(
+    `${COLOURS.blue}Intialising database of type: ${COLOURS.magenta}${dbType}${COLOURS.reset}`
+  );
   if (dbType === "sqlite") {
     const dbPath = path.resolve(connectionString);
     if (!(await Bun.file(dbPath).exists())) {
-      console.log("Database not found, creating...");
+      console.log(
+        `${COLOURS.blue}Database not found, creating...${COLOURS.reset}`
+      );
       await Bun.write(dbPath, "");
     }
   }
@@ -22,7 +27,9 @@ export async function initialiseDatabase(
 
   try {
     await db.raw("SELECT 1");
-    console.log("Database connection successful");
+    console.log(
+      `${COLOURS.green}Database connection successful${COLOURS.reset}`
+    );
     await createSchema(db);
   } catch (e) {
     console.error("Failed to connect to database", e);

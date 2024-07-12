@@ -80,8 +80,6 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
   > {
     try {
       const keys = this.getKeys(identifier);
-      console.log("identifier", identifier);
-      console.log("keys", keys);
       const affected = await this.knex(this.tableName).where(keys).delete();
       if (affected === 0) {
         return { error: "Record not found" };

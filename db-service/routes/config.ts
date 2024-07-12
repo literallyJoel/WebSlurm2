@@ -3,6 +3,7 @@ import { Elysia, t } from "elysia";
 import { getRuntimeConfig, setRuntimeConfig } from "../helpers/config";
 import { getDatabase, initialiseDatabase } from "../helpers/db";
 import { restart } from "../helpers/misc";
+import { COLOURS } from "../helpers/colours";
 
 export function configRoutes(app: Elysia, onDatabaseConfigured: () => void) {
   return (
@@ -31,7 +32,7 @@ export function configRoutes(app: Elysia, onDatabaseConfigured: () => void) {
                 set.status = 200;
                 onDatabaseConfigured();
                 console.log(
-                  `Database cofigured with type ${body.dbType}. Restarting...`
+                  `${COLOURS.blue}Database cofigured with type ${COLOURS.magenta}${body.dbType}${COLOURS.blue}. ${COLOURS.yellow}Restarting...${COLOURS.reset}`
                 );
                 restart();
               } catch (e) {

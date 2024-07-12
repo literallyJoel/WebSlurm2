@@ -9,6 +9,7 @@ import { getRuntimeConfig } from "./helpers/config";
 
 import { getModelClass } from "./helpers/models";
 import UserModel from "./models/UserModel";
+import { COLOURS } from "./helpers/colours";
 
 let app: Elysia;
 
@@ -21,7 +22,9 @@ function setupDatabaseRoutes() {
   }
 
   app
-    .post("/test", () => "yeet")
+    .get("/ping", () => ({
+      message: "pong",
+    }))
     .post(
       "/query",
       async ({ body, set }) => {
@@ -79,7 +82,11 @@ function setupDatabaseRoutes() {
       },
       {
         body: t.Object({
-          model: t.Union([t.Literal("user"), t.Literal("organisation"), t.Literal("organisationMember")]),
+          model: t.Union([
+            t.Literal("user"),
+            t.Literal("organisation"),
+            t.Literal("organisationMember"),
+          ]),
           operation: t.Union([
             t.Literal("getOne"),
             t.Literal("getMany"),
@@ -125,14 +132,19 @@ export async function startServer() {
     setupDatabaseRoutes();
   }
 
-  app.listen(process.env.DB_SERVICE_PORT || 5160);
-  console.log(
-    `Database Service Started on ${app.server?.url}. ${
-      isDatabaseConfigured()
-        ? `Database is configured with type ${getRuntimeConfig().dbType}.`
-        : `Awaiting configuration.\nSend a POST request to ${app.server?.url}config/init with dbType and connectionString in the body.\nAllowed types are sqlite, postgres, sqlserver, oracledb.\nIf using SQLite, connectionString should be the filepath for the sqlite file.`
-    }`
-  );
+  app.listen(process.env.DB_SERVICE_PORT || 5160, (server) => {
+    console.log(
+      `${COLOURS.green}Database Service Started on ${COLOURS.magenta}${
+        server.url
+      }.${COLOURS.reset}${
+        isDatabaseConfigured()
+          ? `${COLOURS.green}Database is configured with type ${
+              COLOURS.magenta
+            }${getRuntimeConfig().dbType}.${COLOURS.reset}`
+          : `${COLOURS.yellow}Awaiting configuration.\nSend a POST request to ${server.url}config/init with dbType and connectionString in the body.\nAllowed types are sqlite, postgres, sqlserver, oracledb.\nIf using SQLite, connectionString should be the filepath for the sqlite file.${COLOURS.reset}`
+      }`
+    );
+  });
 }
 
 startServer();

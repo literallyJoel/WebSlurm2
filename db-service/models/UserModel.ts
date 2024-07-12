@@ -1,6 +1,6 @@
 import { Knex } from "knex";
 import ModelClass from "./ModelClass";
-
+import { TABLE_NAMES } from "../config/schema";
 export interface UserInput {
   name: string;
   email: string;
@@ -26,7 +26,7 @@ export type SantisedUser = Pick<
 >;
 
 export default class UserModel extends ModelClass<User, SantisedUser> {
-  constructor(knex: Knex, tableName = "webslurm2_users") {
+  constructor(knex: Knex, tableName = TABLE_NAMES.user) {
     super(knex, tableName);
   }
 

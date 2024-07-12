@@ -9,7 +9,7 @@ type operation =
   | "getUserByEmail";
 
 //todo figure out a good method of getting the db service URL automatically
-const dbServiceUrl = "http://localhost:5160/query";
+export const dbServiceUrl = "http://localhost:5160/query";
 export async function callDBService(
   model: model,
   operation: operation,
