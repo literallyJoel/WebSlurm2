@@ -9,6 +9,7 @@ export const TABLE_NAMES = {
   config: "ws2_config",
 };
 export async function createSchema(knex: Knex) {
+  let count = 0;
   //Create the users table
   if (!(await knex.schema.hasTable(TABLE_NAMES.user))) {
     await knex.schema.createTable(TABLE_NAMES.user, (table) => {
@@ -22,6 +23,7 @@ export async function createSchema(knex: Knex) {
       table.boolean("requiresReset").defaultTo(false);
       table.timestamps(true, true);
     });
+    count++;
     console.log(
       `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.user} ${COLOURS.blue}created${COLOURS.reset}`
     );
@@ -34,6 +36,7 @@ export async function createSchema(knex: Knex) {
       table.string("name").notNullable();
       table.timestamps(true, true);
     });
+    count++;
     console.log(
       `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.organisation} ${COLOURS.blue}created${COLOURS.reset}`
     );
@@ -50,6 +53,7 @@ export async function createSchema(knex: Knex) {
       table.string("role").notNullable().defaultTo("user");
       table.timestamps(true, true);
     });
+    count++;
     console.log(
       `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.organisationMember} ${COLOURS.blue}created${COLOURS.reset}`
     );
@@ -62,10 +66,22 @@ export async function createSchema(knex: Knex) {
       table.string("value").notNullable();
       table.timestamps(true, true);
     });
+    count++;
     console.log(
       `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.config} ${COLOURS.blue}created${COLOURS.reset}`
     );
+    //Insert isSetup into the config table
+    await knex(TABLE_NAMES.config).insert({
+      key: "setupComplete",
+      value: "false",
+    });
   }
 
-  console.log(`${COLOURS.blue}Schema created succesfully${COLOURS.reset}`);
+  if (count !== 0) {
+    console.log(
+      `${COLOURS.blue}Schema ${
+        count === Object.keys(TABLE_NAMES).length ? "created" : "updated"
+      } succesfully${COLOURS.reset}`
+    );
+  }
 }

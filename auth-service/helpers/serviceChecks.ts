@@ -2,7 +2,7 @@ import { COLOURS } from "./colours";
 import { dbServiceUrl } from "./serviceCalls";
 
 async function checkDBService() {
-  const dbServicePingUrl = dbServiceUrl.replace("query", "ping");
+  const dbServicePingUrl = `${dbServiceUrl}/ping`;
   const dbServicePingResponse = await fetch(dbServicePingUrl);
   let dbServicePingResponseJSON: { message: string } | undefined = undefined;
 
@@ -27,9 +27,7 @@ async function checkDBService() {
 
   if (dbServicePingResponseJSON?.message === "pong") {
     console.log(
-      `${COLOURS.blue}Recieved response from DB service on ${
-        COLOURS.magenta
-      }${dbServiceUrl.replace("query", "")}${COLOURS.reset}`
+      `${COLOURS.blue}Recieved response from DB service on ${COLOURS.magenta}${dbServiceUrl}${COLOURS.reset}`
     );
   }
 }

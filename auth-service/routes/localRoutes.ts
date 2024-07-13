@@ -1,6 +1,6 @@
 import Elysia, { t } from "elysia";
 import argon2 from "argon2";
-import { callDBService } from "../helpers/serviceCalls";
+import { dbQuery, dbTransaction } from "../helpers/serviceCalls";
 import jwt from "@elysiajs/jwt";
 import { v4 } from "uuid";
 
@@ -45,7 +45,7 @@ export async function localRoutes(app: Elysia) {
           const hashed = argon2.hash(_password);
 
           //Create the user
-          const user = (await callDBService("user", "create", {
+          const user = (await dbQuery("user", "create", {
             ...body,
             password: hashed,
           })) as {
@@ -68,10 +68,12 @@ export async function localRoutes(app: Elysia) {
             email: t.String({ format: "email" }),
             name: t.String({ minLength: 1 }),
             role: t.Union([t.Literal("admin"), t.Literal("user")]),
+            image: t.Optional(t.String()),
             password: t.Optional(
               t.String({
                 minLength: 8,
-                pattern: "^(?=.[A-Z])(?=.[a-z])(?=.\\d)(?=.[\\W_]).*$",
+                pattern:
+                  "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
               })
             ),
             organisationId: t.String({ format: "uuid" }),
@@ -93,7 +95,7 @@ export async function localRoutes(app: Elysia) {
             userId: t.String({ format: "uuid" }),
             role: t.Union([t.Literal("admin"), t.Literal("user")]),
             name: t.String({ minLength: 1 }),
-            image: t.String(),
+            image: t.Optional(t.String()),
             requiresReset: t.Boolean(),
           }),
         })
@@ -102,14 +104,14 @@ export async function localRoutes(app: Elysia) {
         "/login",
         async ({ body, set, jwt }) => {
           const { email, password } = body;
-          const user = (await callDBService("user", "getUserByEmail", {
+          const user = (await dbQuery("user", "getUserByEmail", {
             email,
           })) as {
             id: string;
             email: string;
             name: string;
             password?: string;
-            image: string;
+            image?: string;
             role: "admin" | "user";
             requiresReset: boolean;
           } | null;
@@ -147,6 +149,80 @@ export async function localRoutes(app: Elysia) {
           body: t.Object({
             email: t.String({ format: "email" }),
             password: t.String({ minLength: 8 }),
+          }),
+        }
+      )
+      .post(
+        "/initial",
+        async ({ body, set }) => {
+          const isSetup = (await dbQuery("config", "getOne", {
+            key: "setupComplete",
+          })) as {
+            key: "setupComplete";
+            value: "true" | "false";
+          } | null;
+
+          console.log(isSetup);
+          if (isSetup && isSetup.value === "true") {
+            set.status = 404;
+            return { message: "Not Found" };
+          }
+
+          const { email, name, image, password, organisationName } = body;
+          const hashed = await argon2.hash(password);
+
+          const result = await dbTransaction([
+            {
+              order: 1,
+              model: "user",
+              operation: "create",
+              params: {
+                email,
+                name,
+                image,
+                password: hashed,
+              },
+              resultKey: "user",
+            },
+            {
+              order: 2,
+              model: "organisation",
+              operation: "create",
+              params: {
+                name: organisationName,
+              },
+              resultKey: "organisation",
+            },
+            {
+              order: 3,
+              model: "organisationMember",
+              operation: "create",
+              params: {
+                organisationId: { $ref: "organisation", field: "id" },
+                userId: { $ref: "user", field: "id" },
+                role: "admin",
+              },
+            },
+          ]);
+
+          if (!result) {
+            set.status = 500;
+            return { error: "Internal Server Error" };
+          }
+
+          return result;
+        },
+        {
+          body: t.Object({
+            email: t.String({ format: "email" }),
+            name: t.String({ minLength: 1 }),
+            image: t.Optional(t.String()),
+            password: t.String({
+              minLength: 8,
+              pattern:
+                "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
+            }),
+            organisationName: t.String({ minLength: 1 }),
           }),
         }
       )

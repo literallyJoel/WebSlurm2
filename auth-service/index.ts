@@ -1,6 +1,5 @@
 import { Elysia } from "elysia";
 import { localRoutes } from "./routes/localRoutes";
-import { dbServiceUrl } from "./helpers/serviceCalls";
 import { COLOURS } from "./helpers/colours";
 import { checkServices } from "./helpers/serviceChecks";
 const app = new Elysia();

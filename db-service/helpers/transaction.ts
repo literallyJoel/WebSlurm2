@@ -28,8 +28,9 @@ function validateOrder(arr: number[]) {
 
 function resolveReferences(params: any, results: Record<string, any>): any {
   if (typeof params === "object" && params !== null) {
-    if ("$ref" in params) {
-      return results[params.$ref];
+    if ("$ref" in params && "field" in params) {
+      console.log(results[params.$ref][params.field]);
+      return results[params.$ref][params.field];
     }
     return Object.fromEntries(
       Object.entries(params).map(([key, value]) => [
@@ -61,6 +62,7 @@ async function performOperation(
     case "getOne": {
       const result = await tx(TABLE_NAMES[model]).where(params).first();
       if (!result) {
+        console.log("It's GetOne");
         throw new Error(ErrorType.NOT_FOUND);
       }
       return result;
@@ -68,6 +70,7 @@ async function performOperation(
     case "getMany": {
       const result = await tx(TABLE_NAMES[model]).where(params).select();
       if (result.length === 0) {
+        console.log("It's GetMany");
         throw new Error(ErrorType.NOT_FOUND);
       }
       return result;
@@ -75,6 +78,7 @@ async function performOperation(
     case "getAll": {
       const result = await tx(TABLE_NAMES[model]).select();
       if (result.length === 0) {
+        console.log("It's GetAll");
         throw new Error(ErrorType.NOT_FOUND);
       }
       return result;
@@ -96,6 +100,7 @@ async function performOperation(
         .where("email", params.email)
         .first();
       if (!user) {
+        console.log("It's GetUserByEmail");
         throw new Error(ErrorType.NOT_FOUND);
       }
       return user;
@@ -116,49 +121,55 @@ export async function transaction(operations: TransactionOperation[]) {
   }
 
   operations.sort((a, b) => a.order - b.order);
-  return db.transaction(async (tx) => {
-    const results: Record<string, any> = {};
-    const returns: Record<string, any> = {};
-    for (const op of operations) {
-      // Resolve any references in params
-      const resolvedParams = resolveReferences(op.params, results);
+  return await db.transaction(async (tx) => {
+    try {
+      const results: Record<string, any> = {};
+      const returns: Record<string, any> = {};
+      for (const op of operations) {
+        // Resolve any references in params
+        const resolvedParams = resolveReferences(op.params, results);
 
-      // Perform the operation
-      const result = await performOperation(
-        tx,
-        op.model,
-        op.operation,
-        resolvedParams
-      );
+        // Perform the operation
+        const result = await performOperation(
+          tx,
+          op.model,
+          op.operation,
+          resolvedParams
+        );
 
-      // Create an object of any fields from the result to return, and then add it to the returns object
-      if (op.return) {
-        const returnObj: Record<string, any> = {};
-        op.return.forEach((field) => {
-          if (result && typeof result === "object" && field in result) {
-            returnObj[field] = result[field];
+        // Create an object of any fields from the result to return, and then add it to the returns object
+        if (op.return) {
+          const returnObj: Record<string, any> = {};
+          op.return.forEach((field) => {
+            if (result && typeof result === "object" && field in result) {
+              returnObj[field] = result[field];
+            }
+          });
+
+          if (Object.keys(returnObj).length > 0) {
+            if (!returns[op.model]) {
+              returns[op.model] = [];
+            }
+            returns[op.model].push(returnObj);
           }
-        });
+        }
 
-        if (Object.keys(returnObj).length > 0) {
-          if (!returns[op.model]) {
-            returns[op.model] = [];
+        // Store the result if a resultKey is provided
+        if (op.resultKey) {
+          if (result === undefined) {
+            throw new Error(
+              `Operation ${op.operation} on ${op.model} returned undefined`
+            );
           }
-          returns[op.model].push(returnObj);
+          results[op.resultKey] = result;
         }
       }
 
-      // Store the result if a resultKey is provided
-      if (op.resultKey) {
-        if (result === undefined) {
-          throw new Error(
-            `Operation ${op.operation} on ${op.model} returned undefined`
-          );
-        }
-        results[op.resultKey] = result;
-      }
+      await tx.commit();
+      return returns;
+    } catch (e) {
+      tx.rollback();
+      throw e;
     }
-
-    return returns;
   });
 }

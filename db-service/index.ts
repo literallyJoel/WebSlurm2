@@ -13,10 +13,13 @@ import { COLOURS } from "./helpers/colours";
 import { transaction } from "./helpers/transaction";
 import { handleError, ErrorType } from "./helpers/errorHandler";
 
+//todo figure out why it sends an internal server error when console logging a not found error.
+//todo figure out why I get a transaction already commited error
+//todo fix the param reference resolution
 let app: Elysia;
 
 //Adds all non-config routes
-function setupDatabaseRoutes() {
+async function setupDatabaseRoutes() {
   const db = getDatabase();
   if (!db) {
     console.error("Database not initialised");
@@ -139,7 +142,7 @@ function setupDatabaseRoutes() {
     );
 }
 
-function setupConfigRoutes() {
+async function setupConfigRoutes() {
   app = new Elysia().use((app) =>
     serviceConfigRoutes(app, setupDatabaseRoutes)
   );
@@ -155,15 +158,19 @@ export async function startServer() {
     process.exit(1);
   }
 
-  setupConfigRoutes();
+  await setupConfigRoutes();
+
   if (dbType && process.env.DATABASE_CONNECTION_STRING) {
     await initialiseDatabase(dbType, process.env.DATABASE_CONNECTION_STRING);
   }
 
   if (isDatabaseConfigured()) {
-    setupDatabaseRoutes();
+    await setupDatabaseRoutes();
   }
 
+  app.all("*", async ({ request }) => {
+    console.log(request.url);
+  });
   app.listen(process.env.DB_SERVICE_PORT || 5160, (server) => {
     console.log(
       `${COLOURS.green}Database Service Started on ${COLOURS.magenta}${
