@@ -18,8 +18,6 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
       .where(this.getKeys(identifier))
       .first();
     if (!result) {
-      console.log(this.tableName);
-      console.log(identifier);
       throw new Error(ErrorType.NOT_FOUND);
     }
     return this.sanitiseData(result);

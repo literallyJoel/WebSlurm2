@@ -13,9 +13,6 @@ import { COLOURS } from "./helpers/colours";
 import { transaction } from "./helpers/transaction";
 import { handleError, ErrorType } from "./helpers/errorHandler";
 
-//todo figure out why it sends an internal server error when console logging a not found error.
-//todo figure out why I get a transaction already commited error
-//todo fix the param reference resolution
 let app: Elysia;
 
 //Adds all non-config routes
@@ -168,9 +165,7 @@ export async function startServer() {
     await setupDatabaseRoutes();
   }
 
-  app.all("*", async ({ request }) => {
-    console.log(request.url);
-  });
+
   app.listen(process.env.DB_SERVICE_PORT || 5160, (server) => {
     console.log(
       `${COLOURS.green}Database Service Started on ${COLOURS.magenta}${

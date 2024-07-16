@@ -52,7 +52,6 @@ export async function dbTransaction(operations: TransactionOperation[]) {
     operations,
   });
 
-  console.log("Transaction body: ", body);
   const response = await fetch(`${dbServiceUrl}/transaction`, {
     headers: {
       "Content-Type": "application/json",

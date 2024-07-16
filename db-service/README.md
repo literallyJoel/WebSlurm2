@@ -92,7 +92,7 @@ Each model extends the `ModelClass`, which provides common CRUD operations.
 
 To perform a single database operation:
 
-```javascript
+````javascript
 
 POST  /query
 
@@ -122,7 +122,8 @@ POST  /transaction
 
 "params":  {  "name":  "John Doe",  "email":  "john@example.com"  },
 
-"resultKey":  "user"
+"resultKey":  "user",
+"return": ["id", "email"]
 
 },
 
@@ -134,15 +135,52 @@ POST  /transaction
 
 "operation":  "create",
 
-"params":  {  "name":  "ACME Inc.",  "userId":  {  "$ref":  "user",  "field":  "id"  }  }
+"params":  {  "name":  "ACME Inc." },
 
+"return": ["id"]
+
+},
+{
+   "order": 3,
+   "model": "organisationMember",
+   "operation": "create",
+   "params": {
+     "organisationId": { "$ref": "organisation", "field": "id" },
+     "userId": { "$ref": "user", "field": "id" },
+     "role": "user"
+   },
+   "return": ["role"]
 }
 
 ]
 
 }
 
-```
+The `return` field is optional, and if provided, it should be an array of strings, each representing a field in the result object. The result object witll be returned as a JSON object, with each model being a property on the object, containing an array of objects, where each object contains the return results.
+
+An example of the result object for  the above transaction is:
+
+```json
+{
+  "user": [
+    {
+      "id": "123",
+      "email": "john@example.com"
+    }
+  ],
+  "organisation": [
+    {
+      "id": "456",
+      "name": "ACME Inc."
+    }
+  ],
+  "organisationMember": [
+    {
+      "role": "user"
+    }
+  ]
+
+````
 
 ### Creating new Models
 

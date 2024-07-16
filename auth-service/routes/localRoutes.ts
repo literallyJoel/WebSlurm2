@@ -183,6 +183,7 @@ export async function localRoutes(app: Elysia) {
                 password: hashed,
               },
               resultKey: "user",
+              return: ["id"],
             },
             {
               order: 2,
@@ -192,6 +193,7 @@ export async function localRoutes(app: Elysia) {
                 name: organisationName,
               },
               resultKey: "organisation",
+              return: ["id"],
             },
             {
               order: 3,
@@ -202,6 +204,7 @@ export async function localRoutes(app: Elysia) {
                 userId: { $ref: "user", field: "id" },
                 role: "admin",
               },
+              return: ["role"],
             },
           ]);
 

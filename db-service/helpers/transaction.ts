@@ -26,12 +26,23 @@ function validateOrder(arr: number[]) {
   return set.size === arr.length && Math.max(...arr) === arr.length;
 }
 
-function resolveReferences(params: any, results: Record<string, any>): any {
+function resolveReferences(params: any, results: Record<string, any[]>): any {
   if (typeof params === "object" && params !== null) {
     if ("$ref" in params && "field" in params) {
-      console.log(results[params.$ref][params.field]);
-      return results[params.$ref][params.field];
+      const refArray = results[params.$ref];
+      if (!refArray || refArray.length === 0) {
+        throw new Error(`Reference "${params.$ref}" not found in results`);
+      }
+
+      const lastItem = refArray[refArray.length - 1];
+      if (!(params.field in lastItem)) {
+        throw new Error(
+          `Field "${params.field}" not found in reference "${params.$ref}"`
+        );
+      }
+      return lastItem[params.field];
     }
+
     return Object.fromEntries(
       Object.entries(params).map(([key, value]) => [
         key,
@@ -41,7 +52,6 @@ function resolveReferences(params: any, results: Record<string, any>): any {
   }
   return params;
 }
-
 async function performOperation(
   tx: Knex.Transaction,
   model: "user" | "organisation" | "organisationMember" | "config",
@@ -122,54 +132,53 @@ export async function transaction(operations: TransactionOperation[]) {
 
   operations.sort((a, b) => a.order - b.order);
   return await db.transaction(async (tx) => {
-    try {
-      const results: Record<string, any> = {};
-      const returns: Record<string, any> = {};
-      for (const op of operations) {
-        // Resolve any references in params
-        const resolvedParams = resolveReferences(op.params, results);
+    const results: Record<string, any> = {};
+    const returns: Record<string, any> = {};
+    for (const op of operations) {
+      // Resolve any references in params
+      const resolvedParams = resolveReferences(op.params, results);
 
-        // Perform the operation
-        const result = await performOperation(
-          tx,
-          op.model,
-          op.operation,
-          resolvedParams
-        );
+      // Perform the operation
+      const result = await performOperation(
+        tx,
+        op.model,
+        op.operation,
+        resolvedParams
+      );
 
-        // Create an object of any fields from the result to return, and then add it to the returns object
-        if (op.return) {
-          const returnObj: Record<string, any> = {};
-          op.return.forEach((field) => {
-            if (result && typeof result === "object" && field in result) {
-              returnObj[field] = result[field];
-            }
-          });
-
-          if (Object.keys(returnObj).length > 0) {
-            if (!returns[op.model]) {
-              returns[op.model] = [];
-            }
-            returns[op.model].push(returnObj);
+      // Create an object of any fields from the result to return, and then add it to the returns object
+      if (op.return) {
+        const returnObj: Record<string, any> = {};
+        op.return.forEach((field) => {
+          if (
+            result &&
+            result[0] &&
+            typeof result[0] === "object" &&
+            field in result[0]
+          ) {
+            console.log("field: ", field);
+            returnObj[field] = result[0][field];
           }
-        }
+        });
 
-        // Store the result if a resultKey is provided
-        if (op.resultKey) {
-          if (result === undefined) {
-            throw new Error(
-              `Operation ${op.operation} on ${op.model} returned undefined`
-            );
+        if (Object.keys(returnObj).length > 0) {
+          if (!returns[op.model]) {
+            returns[op.model] = [];
           }
-          results[op.resultKey] = result;
+          returns[op.model].push(returnObj);
         }
       }
-
-      await tx.commit();
-      return returns;
-    } catch (e) {
-      tx.rollback();
-      throw e;
+      // Store the result if a resultKey is provided
+      if (op.resultKey) {
+        if (result === undefined) {
+          throw new Error(
+            `Operation ${op.operation} on ${op.model} returned undefined`
+          );
+        }
+        results[op.resultKey] = result;
+      }
     }
+
+    return returns;
   });
 }
