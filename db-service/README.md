@@ -92,7 +92,7 @@ Each model extends the `ModelClass`, which provides common CRUD operations.
 
 To perform a single database operation:
 
-````javascript
+```javascript
 
 POST  /query
 
@@ -105,6 +105,13 @@ POST  /query
 "params": {  "id":  "123"  }
 
 }
+```
+
+### Transaction
+
+To perform multiple database operations in a transaction:
+
+```javascript
 
 POST  /transaction
 
@@ -155,10 +162,11 @@ POST  /transaction
 ]
 
 }
+```
 
 The `return` field is optional, and if provided, it should be an array of strings, each representing a field in the result object. The result object witll be returned as a JSON object, with each model being a property on the object, containing an array of objects, where each object contains the return results.
 
-An example of the result object for  the above transaction is:
+An example of the result object for the above transaction is:
 
 ```json
 {
@@ -180,7 +188,7 @@ An example of the result object for  the above transaction is:
     }
   ]
 
-````
+```
 
 ### Creating new Models
 
