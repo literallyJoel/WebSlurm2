@@ -119,47 +119,47 @@ POST  /transaction
 
 "operations": [
 
-{
+   {
 
-"order":  1,
+   "order":  1,
 
-"model":  "user",
+   "model":  "user",
 
-"operation":  "create",
+   "operation":  "create",
 
-"params":  {  "name":  "John Doe",  "email":  "john@example.com"  },
+   "params":  {  "name":  "John Doe",  "email":  "john@example.com"  },
 
-"resultKey":  "user",
-"return": ["id", "email"]
+   "resultKey":  "user",
+   "return": ["id", "email"]
 
-},
-
-{
-
-"order":  2,
-
-"model":  "organisation",
-
-"operation":  "create",
-
-"params":  {  "name":  "ACME Inc." },
-
-"return": ["id"]
-
-},
-{
-   "order": 3,
-   "model": "organisationMember",
-   "operation": "create",
-   "params": {
-     "organisationId": { "$ref": "organisation", "field": "id" },
-     "userId": { "$ref": "user", "field": "id" },
-     "role": "user"
    },
-   "return": ["role"]
-}
 
-]
+   {
+
+   "order":  2,
+
+   "model":  "organisation",
+
+   "operation":  "create",
+
+   "params":  {  "name":  "ACME Inc." },
+
+   "return": ["id"]
+
+   },
+   {
+      "order": 3,
+      "model": "organisationMember",
+      "operation": "create",
+      "params": {
+      "organisationId": { "$ref": "organisation", "field": "id" },
+      "userId": { "$ref": "user", "field": "id" },
+      "role": "user"
+      },
+      "return": ["role"]
+   }
+
+   ]
 
 }
 ```
@@ -187,7 +187,7 @@ An example of the result object for the above transaction is:
       "role": "user"
     }
   ]
-
+}
 ```
 
 ### Creating new Models
