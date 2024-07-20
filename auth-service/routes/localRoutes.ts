@@ -3,6 +3,7 @@ import argon2 from "argon2";
 import { dbQuery, dbTransaction } from "../helpers/serviceCalls";
 import jwt from "@elysiajs/jwt";
 import { v4 } from "uuid";
+import { ErrorType, handleError } from "../helpers/errorHandler";
 
 function generatePassword(length: number = 8) {
   const charSets = [
@@ -128,13 +129,17 @@ export async function localRoutes(app: Elysia) {
             return { error: "Invalid email or password" };
           }
 
-          const isPasswordCorrect = argon2.verify(password, user.password);
+          const isPasswordCorrect = await argon2.verify(
+            user.password,
+            password
+          );
+
           if (!isPasswordCorrect) {
             set.status = 401;
             return { error: "Invalid email or password" };
           }
 
-          const token = jwt.sign({
+          const token = await jwt.sign({
             tokenId: v4(),
             userId: user.id,
             role: user.role,
@@ -154,7 +159,7 @@ export async function localRoutes(app: Elysia) {
       )
       .post(
         "/initial",
-        async ({ body, set }) => {
+        async ({ body, set,  }) => {
           const isSetup = (await dbQuery("config", "getOne", {
             key: "setupComplete",
           })) as {
@@ -181,6 +186,7 @@ export async function localRoutes(app: Elysia) {
                 name,
                 image,
                 password: hashed,
+                role: "admin",
               },
               resultKey: "user",
               return: ["id"],
@@ -226,6 +232,30 @@ export async function localRoutes(app: Elysia) {
                 "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
             }),
             organisationName: t.String({ minLength: 1 }),
+          }),
+        }
+      )
+      .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
+      .post(
+        "/verify",
+        async ({ body, jwt, set }) => {
+          const { token } = body;
+          try {
+            const decoded = await jwt.verify(token);
+            if (!decoded) {
+              set.status = 401;
+              return { error: "Unauthorized" };
+            }
+            return decoded;
+          } catch (e) {
+            console.error(e);
+            set.status = 401;
+            return handleError(e, ErrorType.UNAUTHORIZED);
+          }
+        },
+        {
+          body: t.Object({
+            token: t.String(),
           }),
         }
       )

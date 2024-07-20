@@ -1,12 +1,13 @@
 import { Knex } from "knex";
 import { v4 } from "uuid";
 import { COLOURS } from "../helpers/colours";
-import { config } from "process";
+
 export const TABLE_NAMES = {
   user: "ws2_user",
   organisation: "ws2_organisation",
   organisationMember: "ws2_organisation_member",
   config: "ws2_config",
+  oAuthProviders: "ws2_oauth_providers",
 };
 export async function createSchema(knex: Knex) {
   let count = 0;
@@ -16,7 +17,7 @@ export async function createSchema(knex: Knex) {
       table.string("id").primary().notNullable().defaultTo(v4());
       table.string("name").notNullable();
       table.string("email").notNullable().unique();
-      table.timestamp("emailVerified");
+      table.boolean("emailVerified").defaultTo(false);
       table.string("password").nullable();
       table.string("image");
       table.string("role").notNullable().defaultTo("user");
@@ -75,6 +76,19 @@ export async function createSchema(knex: Knex) {
       key: "setupComplete",
       value: "false",
     });
+  }
+
+  if (!(await knex.schema.hasTable(TABLE_NAMES.oAuthProviders))) {
+    await knex.schema.createTable(TABLE_NAMES.oAuthProviders, (table) => {
+      table.string("name").primary().notNullable();
+      table.string("requiredFields").notNullable();
+      table.string("optionalFields").nullable();
+    });
+
+    count++;
+    console.log(
+      `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.oAuthProviders} ${COLOURS.blue}created${COLOURS.reset}`
+    );
   }
 
   if (count !== 0) {

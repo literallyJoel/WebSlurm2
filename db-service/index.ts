@@ -19,7 +19,7 @@ let app: Elysia;
 async function setupDatabaseRoutes() {
   const db = getDatabase();
   if (!db) {
-    console.error("Database not initialised");
+    handleError(new Error("Database not initialised"));
     return;
   }
 
@@ -77,6 +77,7 @@ async function setupDatabaseRoutes() {
             t.Literal("organisation"),
             t.Literal("organisationMember"),
             t.Literal("config"),
+            t.Literal("oAuthProvider")
           ]),
           operation: t.Union([
             t.Literal("getOne"),
@@ -149,9 +150,12 @@ export async function startServer() {
   const dbType = process.env.DATABASE_TYPE;
   const allowedTypes = ["sqlite", "postgres", "sqlserver", "oracledb"];
   if (dbType && !allowedTypes.includes(dbType)) {
-    console.error(
-      "Invalid database type. Allowed types are sqlite, postgres, sqlserver, oracledb"
+    handleError(
+      new Error(
+        `Invalid database type. Allowed types are sqlite, postgres, sqlserver, oracledb`
+      )
     );
+
     process.exit(1);
   }
 
@@ -164,7 +168,6 @@ export async function startServer() {
   if (isDatabaseConfigured()) {
     await setupDatabaseRoutes();
   }
-
 
   app.listen(process.env.DB_SERVICE_PORT || 5160, (server) => {
     console.log(

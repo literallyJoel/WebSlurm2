@@ -4,6 +4,7 @@ import { getRuntimeConfig, setRuntimeConfig } from "../helpers/config";
 import { getDatabase, initialiseDatabase } from "../helpers/db";
 import { restart } from "../helpers/restart";
 import { COLOURS } from "../helpers/colours";
+import { handleError } from "../helpers/errorHandler";
 
 export function serviceConfigRoutes(
   app: Elysia,
@@ -40,7 +41,7 @@ export function serviceConfigRoutes(
                 restart();
               } catch (e) {
                 set.status = 500;
-                console.error("Failed to initialise database: ", e);
+                handleError(`Failed to initialise database: ${e}`);
                 return "Internal Server Error";
               }
             },

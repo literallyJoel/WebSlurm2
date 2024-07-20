@@ -3,12 +3,14 @@ import OrganisationModel from "../models/OrganisationModel";
 import OrganisationMemberModel from "../models/OrganisationMemberModel";
 import { getDatabase } from "./db";
 import ConfigModel from "../models/ConfigModel";
+import { handleError } from "./errorHandler";
+import OAuthProvidersModel from "../models/OAuthProviderModel";
 
 export function getModelClass(model: string) {
   const db = getDatabase();
 
   if (!db) {
-    console.error("Database not initialized");
+    handleError(new Error("Database not initialised"));
     return null;
   }
 
@@ -21,6 +23,8 @@ export function getModelClass(model: string) {
       return new OrganisationMemberModel(db);
     case "config":
       return new ConfigModel(db);
+    case "oAuthProvider":
+      return new OAuthProvidersModel(db);
     default:
       return null;
   }

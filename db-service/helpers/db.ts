@@ -3,6 +3,7 @@ import { getDbConfig } from "../service-config/database";
 import path from "path";
 import { createSchema } from "../service-config/schema";
 import { COLOURS } from "./colours";
+import { handleError } from "./errorHandler";
 
 let db: TKnex | null = null;
 
@@ -32,7 +33,7 @@ export async function initialiseDatabase(
     );
     await createSchema(db);
   } catch (e) {
-    console.error("Failed to connect to database", e);
+    handleError(`Failed to connect to database: ${e}`);
     db = null;
     throw e;
   }

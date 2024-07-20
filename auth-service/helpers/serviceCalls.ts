@@ -1,8 +1,15 @@
-type model = "user" | "organisation" | "organisationMember" | "config";
+import { handleError } from "./errorHandler";
+
+type model =
+  | "user"
+  | "organisation"
+  | "organisationMember"
+  | "config"
+  | "oAuthProvider";
 type operation =
   | "getOne"
   | "getMany"
-  | "getAlL"
+  | "getAll"
   | "create"
   | "update"
   | " delete"
@@ -12,7 +19,7 @@ interface TransactionOperation {
   order: number;
   model: model;
   operation: operation;
-  params: any | { $ref: string; field: string };
+  params: object | { $ref: string; field: string };
   resultKey?: string;
   return?: string[];
 }
@@ -34,11 +41,12 @@ export async function dbQuery(model: model, operation: operation, params: any) {
 
   //todo figure out the best way to handle errors
   if (!response.ok) {
-    console.error(
-      "Error calling db service (query): ",
-      response.status,
-      response.statusText,
-      await response.text()
+    handleError(
+      new Error(
+        `Error calling db service (query): ${response.status} ${
+          response.statusText
+        } ${await response.text()}`
+      )
     );
 
     return null;
@@ -62,11 +70,12 @@ export async function dbTransaction(operations: TransactionOperation[]) {
 
   //todo figure out the best way to handle errors
   if (!response.ok) {
-    console.error(
-      "Error calling db service (transaction): ",
-      response.status,
-      response.statusText,
-      await response.text()
+    handleError(
+      new Error(
+        `Error calling db service (transaction): ${response.status} ${
+          response.statusText
+        } ${await response.text()}`
+      )
     );
 
     return null;
