@@ -1,20 +1,24 @@
-import { Knex } from "knex";
-import ModelClass from "./ModelClass";
+import type { Knex } from "knex";
+import Model from "./Model";
 import { TABLE_NAMES } from "../service-config/schema";
+
 export interface OrganisationMember {
   organisationId: string;
   userId: string;
   role: "admin" | "moderator" | "user";
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export default class OrganisationMemberModel extends ModelClass<OrganisationMember> {
+export default class OrganisationMemberModel extends Model<OrganisationMember> {
   constructor(knex: Knex, tableName = TABLE_NAMES.organisationMember) {
     super(knex, tableName);
   }
 
+  //Use "organisationId" and "userId" as identifier
   protected getKeys(identifier: Partial<OrganisationMember>): {
-    userId?: string;
     organisationId?: string;
+    userId?: string;
   } {
     return {
       userId: identifier.userId,
@@ -22,12 +26,13 @@ export default class OrganisationMemberModel extends ModelClass<OrganisationMemb
     };
   }
 
+  //Return the data as is
   protected sanitiseData(data: OrganisationMember): OrganisationMember;
   protected sanitiseData(data: OrganisationMember[]): OrganisationMember[];
   protected sanitiseData(data: undefined): undefined;
   protected sanitiseData(
     data: OrganisationMember | OrganisationMember[] | undefined
-  ): OrganisationMember | OrganisationMember[] | undefined {
+  ) {
     return data;
   }
 }

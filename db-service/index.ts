@@ -1,32 +1,36 @@
 import Elysia, { t } from "elysia";
-import { serviceConfigRoutes } from "./routes/service-config";
+import { elysiaErrorHandler, handleError } from "./helpers/errorHandler";
 import {
   getDatabase,
   initialiseDatabase,
   isDatabaseConfigured,
 } from "./helpers/db";
-import { getRuntimeConfig } from "./helpers/config";
-
-import { getModelClass } from "./helpers/models";
+import {
+  getModelClass,
+  ModelNameSchema,
+  OperationNameSchema,
+} from "./helpers/models";
 import UserModel from "./models/UserModel";
-import { COLOURS } from "./helpers/colours";
 import { transaction } from "./helpers/transaction";
-import { handleError, ErrorType } from "./helpers/errorHandler";
+import serviceConfigRoutes from "./routes/service-config";
+import { checkEnvVars } from "./helpers/checkEnvVars";
+import { COLOURS } from "./helpers/colours";
+import { getRuntimeConfig, setRuntimeConfig } from "./helpers/config";
 
 let app: Elysia;
 
-//Adds all non-config routes
+//Adds all the non-config routes. Separate so we can ensure they're only accessible after the database is configured
 async function setupDatabaseRoutes() {
   const db = getDatabase();
   if (!db) {
-    handleError(new Error("Database not initialised"));
-    return;
+    return handleError(new Error("Database not configured"));
   }
 
   app
-    .get("/ping", () => ({
-      message: "pong",
-    }))
+    //Used by other services to check connection
+    .get("/ping", () => ({ message: "pong" }))
+    //Used for any non-transaction queries
+    .onError(({ code, error, set }) => elysiaErrorHandler(code, error, set))
     .post(
       "/query",
       async ({ body, set }) => {
@@ -35,95 +39,55 @@ async function setupDatabaseRoutes() {
         const modelClass = getModelClass(model);
 
         if (!modelClass) {
-          const { error, status } = handleError(
-            new Error(ErrorType.BAD_REQUEST)
-          );
-          set.status = status;
-          return { error };
+          throw new Error("Model not found");
         }
 
-        try {
-          switch (operation) {
-            case "getOne":
-              return await modelClass.getOne(params);
-            case "getMany":
-              return await modelClass.getMany(params);
-            case "getAll":
-              return await modelClass.getAll();
-            case "create":
-              return await modelClass.create(params);
-            case "update":
-              return await modelClass.update(params);
-            case "delete":
-              return await modelClass.delete(params);
-            case "getUserByEmail":
-              if (!(modelClass instanceof UserModel)) {
-                throw new Error(ErrorType.BAD_REQUEST);
-              }
-              return await modelClass.getUserByEmail(params.email);
-            default:
-              throw new Error(ErrorType.BAD_REQUEST);
-          }
-        } catch (error) {
-          const { error: errorMessage, status } = handleError(error);
-          set.status = status;
-          return { error: errorMessage };
+        switch (operation) {
+          case "getOne":
+            return await modelClass.getOne(params);
+          case "getMany":
+            return await modelClass.getMany(params);
+          case "getAll":
+            return await modelClass.getAll();
+          case "create":
+            return await modelClass.create(params);
+          case "update":
+            return await modelClass.update(params);
+          case "delete":
+            return await modelClass.delete(params);
+          case "getUserByEmail":
+            if (!(modelClass instanceof UserModel)) {
+              throw new Error("Call to getUserByEmail on non-user model");
+            }
+            return await modelClass.getByEmail(params.email);
+          default:
+            throw new Error("Unknown Operation");
         }
       },
       {
         body: t.Object({
-          model: t.Union([
-            t.Literal("user"),
-            t.Literal("organisation"),
-            t.Literal("organisationMember"),
-            t.Literal("config"),
-            t.Literal("oAuthProvider")
-          ]),
-          operation: t.Union([
-            t.Literal("getOne"),
-            t.Literal("getMany"),
-            t.Literal("getAll"),
-            t.Literal("create"),
-            t.Literal("update"),
-            t.Literal("delete"),
-            t.Literal("getUserByEmail"),
-          ]),
+          model: ModelNameSchema,
+          operation: OperationNameSchema,
           params: t.Any({ default: {} }),
         }),
       }
     )
+    .onError(({ code, error, set }) => elysiaErrorHandler(code, error, set))
     .post(
+      //Used for transactions
       "/transaction",
-      async ({ body, set }) => {
+      async ({ body }) => {
         const { operations } = body;
-        try {
-          return await transaction(operations);
-        } catch (error) {
-          const { error: errorMessage, status } = handleError(error);
-          set.status = status;
-          return { error: errorMessage };
-        }
+
+        return await transaction(operations);
       },
       {
         body: t.Object({
           operations: t.Array(
             t.Object({
               order: t.Number(),
-              model: t.Union([
-                t.Literal("user"),
-                t.Literal("organisation"),
-                t.Literal("organisationMember"),
-                t.Literal("config"),
-              ]),
-              operation: t.Union([
-                t.Literal("getOne"),
-                t.Literal("getMany"),
-                t.Literal("getAll"),
-                t.Literal("create"),
-                t.Literal("update"),
-                t.Literal("delete"),
-                t.Literal("getUserByEmail"),
-              ]),
+              model: ModelNameSchema,
+              operation: OperationNameSchema,
               params: t.Union([
                 t.Any(),
                 t.Object({
@@ -140,36 +104,39 @@ async function setupDatabaseRoutes() {
     );
 }
 
-async function setupConfigRoutes() {
+//Sets up the service config routes
+export async function setupConfigRoutes() {
   app = new Elysia().use((app) =>
     serviceConfigRoutes(app, setupDatabaseRoutes)
   );
 }
 
-export async function startServer() {
-  const dbType = process.env.DATABASE_TYPE;
-  const allowedTypes = ["sqlite", "postgres", "sqlserver", "oracledb"];
-  if (dbType && !allowedTypes.includes(dbType)) {
-    handleError(
-      new Error(
-        `Invalid database type. Allowed types are sqlite, postgres, sqlserver, oracledb`
-      )
-    );
+//Starts the service
 
-    process.exit(1);
-  }
+export async function startService() {
+  //Ensure the environment variables are valid
+  checkEnvVars();
 
+  //Setup the service config routes
   await setupConfigRoutes();
 
-  if (dbType && process.env.DATABASE_CONNECTION_STRING) {
-    await initialiseDatabase(dbType, process.env.DATABASE_CONNECTION_STRING);
+  //Initialise the database if the env vars are set
+  if (process.env.DATABASE_TYPE && process.env.DATABASE_CONNECTION_STRING) {
+    await setRuntimeConfig(
+      process.env.DATABASE_TYPE,
+      process.env.DATABASE_CONNECTION_STRING
+    );
+    await initialiseDatabase(
+      process.env.DATABASE_TYPE,
+      process.env.DATABASE_CONNECTION_STRING
+    );
   }
-
+  //Check if the database is configued, and setup the database routes if it is
   if (isDatabaseConfigured()) {
     await setupDatabaseRoutes();
   }
 
-  app.listen(process.env.DB_SERVICE_PORT || 5160, (server) => {
+  app.listen(process.env.PORT || 5160, (server) => {
     console.log(
       `${COLOURS.green}Database Service Started on ${COLOURS.magenta}${
         server.url
@@ -178,10 +145,10 @@ export async function startServer() {
           ? `${COLOURS.green}Database is configured with type ${
               COLOURS.magenta
             }${getRuntimeConfig().dbType}${COLOURS.reset}`
-          : `${COLOURS.yellow}Awaiting configuration.\nSend a POST request to ${server.url}service-config/init with dbType and connectionString in the body.\nAllowed types are sqlite, postgres, sqlserver, oracledb.\nIf using SQLite, connectionString should be the filepath for the sqlite file.${COLOURS.reset}`
+          : `${COLOURS.yellow}Awaiting configuration.\nSend a ${COLOURS.cyan}POST${COLOURS.yellow} request to ${COLOURS.magenta}${server.url}service-config/init${COLOURS.yellow} with ${COLOURS.cyan}dbType${COLOURS.yellow} and ${COLOURS.cyan}connectionString${COLOURS.yellow} in the body.\nAllowed types are ${COLOURS.magenta}sqlite, postgres, sqlserver, oracledb.${COLOURS.yellow}\nIf using ${COLOURS.magenta}SQLite${COLOURS.yellow}, connectionString should be the filepath for the sqlite file.${COLOURS.reset}`
       }`
     );
   });
 }
 
-startServer();
+startService();

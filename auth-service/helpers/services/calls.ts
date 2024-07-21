@@ -1,11 +1,13 @@
-import { handleError } from "./errorHandler";
+import { handleError } from "../errorHandler";
 
 type model =
   | "user"
   | "organisation"
   | "organisationMember"
   | "config"
-  | "oAuthProvider";
+  | "oAuthProvider"
+  | "whitelist";
+
 type operation =
   | "getOne"
   | "getMany"
@@ -26,7 +28,18 @@ interface TransactionOperation {
 
 //todo figure out a good method of getting the db service URL automatically
 export const dbServiceUrl = "http://localhost:5160";
-export async function dbQuery(model: model, operation: operation, params: any) {
+
+export async function dbQuery(
+  model: "user",
+  operation: operation,
+  params: any
+): Promise<any>;
+export async function dbQuery(
+  model: model,
+  operation: Exclude<operation, "getUserByEmail">,
+  params: any
+): Promise<any>;
+export async function dbQuery(model: model, operation: operation, params = {}) {
   const response = await fetch(`${dbServiceUrl}/query`, {
     headers: {
       "Content-Type": "application/json",
@@ -41,6 +54,7 @@ export async function dbQuery(model: model, operation: operation, params: any) {
 
   //todo figure out the best way to handle errors
   if (!response.ok) {
+    console.error(model, operation, params, `${dbServiceUrl}/query`);
     handleError(
       new Error(
         `Error calling db service (query): ${response.status} ${

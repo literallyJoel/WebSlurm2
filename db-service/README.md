@@ -64,14 +64,6 @@ This project has been tested on Node.js v22.2.0, though other versions may work.
 
 - `GET /service-config/type`: Get database type
 
-### Database Operations
-
-- `GET /ping`: Check if the service is running
-
-- `POST /query`: Perform a single database operation
-
-- `POST /transaction`: Perform multiple database operations in a transaction
-
 ## Models
 
 The service includes the following models:
@@ -84,7 +76,21 @@ The service includes the following models:
 
 - Config
 
-Each model extends the `ModelClass`, which provides common CRUD operations.
+- OAuthProvider
+
+Each model extends the `Model` class, which provides common CRUD operations.
+
+## Operations
+
+The service provides the following operations:
+
+- getOne
+- getMany
+- getAll
+- create
+- update
+- delete
+- getUserByEmail (only available for the User model)
 
 ## Usage
 
@@ -164,7 +170,7 @@ POST  /transaction
 }
 ```
 
-The `return` field is optional, and if provided, it should be an array of strings, each representing a field in the result object. The result object witll be returned as a JSON object, with each model being a property on the object, containing an array of objects, where each object contains the return results.
+The `return` field is optional, and if provided, it should be an array of strings, each representing a field in the result object. The result object will be returned as a JSON object, with each model being a property on the object, containing an array of objects, where each object contains the return results.
 
 An example of the result object for the above transaction is:
 
@@ -219,25 +225,6 @@ sanitiseData(data: T  |  T[] |  undefined): SanitisedT  |  SanitisedT[] |  undef
 
 ```
 
-### Error Handling
-
-The service uses a centralized error handling mechanism ('/helpers/errorHandling.ts'). Errors are categorized and appropriate HTTP status codes are returned.
-
-The error types are:
-
-- `NOT_FOUND`: 404
-
-- `ALREADY_EXISTS`: 409
-
-- `BAD_REQUEST`: 400
-
-- `UNAUTHORIZED`: 401
-
-- `FORBIDDEN`: 403
-
-- `INTERNAL_SERVER_ERROR`: 500
-
-Errors can be passed to the `handleError` function to return a formatted response. The `handleError` function takes the error object, and optionally one of the above error types, and returns a formatted response object, using INTERNAL_SERVER_ERROR as the default error type.
 
 ### Dependencies
 

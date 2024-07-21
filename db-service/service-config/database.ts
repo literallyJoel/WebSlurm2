@@ -4,6 +4,7 @@ export function getDbConfig(
   dbType: string,
   connectionString: string
 ): Knex.Config {
+  //Handle SQLite separately so we use filename instead of connectionString
   if (dbType === "sqlite") {
     return {
       client: "sqlite3",

@@ -1,23 +1,24 @@
 import type { Knex } from "knex";
-import ModelClass from "./ModelClass";
+import Model from "./Model";
 import { TABLE_NAMES } from "../service-config/schema";
+
 type OAuthProvider = {
   name: string;
-  clientId: string;
-  clientSecret: string;
-  tenantId?: string;
-  userPoolDomain?: string;
-  enabled: boolean;
+  requiredFields: string[];
+  optionalFields?: string[];
 };
-export default class OAuthProvidersModel extends ModelClass<OAuthProvider> {
-  constructor(knex: Knex, tableName = TABLE_NAMES.oAuthProviders) {
+
+export default class OAuthProviderModel extends Model<OAuthProvider> {
+  constructor(knex: Knex, tableName = TABLE_NAMES.oAuthProvider) {
     super(knex, tableName);
   }
 
-  protected getKeys(identifier: Partial<OAuthProvider>) {
+  //use the "name" field as identifier
+  protected getKeys(identifier: Partial<OAuthProvider>): { name?: string } {
     return { name: identifier.name };
   }
 
+  //Return the data as is
   protected sanitiseData(data: OAuthProvider): OAuthProvider;
   protected sanitiseData(data: OAuthProvider[]): OAuthProvider[];
   protected sanitiseData(data: undefined): undefined;

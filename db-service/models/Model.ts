@@ -1,11 +1,13 @@
 import type { Knex } from "knex";
 import { ErrorType } from "../helpers/errorHandler";
 
-export default abstract class ModelClass<T extends {}, SanitisedT = T> {
+export default abstract class Model<T extends {}, SanitisedT = T> {
   constructor(protected knex: Knex, protected tableName: string) {}
 
+  //Used to get the primary key(s) of the model for use in operations
   protected abstract getKeys(identifier: Partial<T>): Partial<T>;
 
+  //Used to sanitise data before returning, used in models such as User to remove sensitive data such as password
   protected abstract sanitiseData(data: T): SanitisedT;
   protected abstract sanitiseData(data: T[]): SanitisedT[];
   protected abstract sanitiseData(data: undefined): undefined;
@@ -13,36 +15,28 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
     data: T | T[] | undefined
   ): SanitisedT | SanitisedT[] | undefined;
 
-  async getOne(identifier: Partial<T>): Promise<SanitisedT> {
+  //Used to retrieve a single row from the database
+  async getOne(identifier: Partial<T>): Promise<SanitisedT | undefined> {
     const result = await this.knex(this.tableName)
       .where(this.getKeys(identifier))
       .first();
-    if (!result) {
-      throw new Error(ErrorType.NOT_FOUND);
-    }
     return this.sanitiseData(result);
   }
 
-  async getMany(identifier: Partial<T> | undefined): Promise<SanitisedT[]> {
+  async getMany(identifier?: Partial<T>): Promise<SanitisedT[]> {
     let query = this.knex(this.tableName);
     query = identifier ? query.where(this.getKeys(identifier)) : query;
     const results = await query.select();
-    if (results.length === 0) {
-      throw new Error(ErrorType.NOT_FOUND);
-    }
     return results.map((result) => this.sanitiseData(result));
   }
 
   async getAll(): Promise<SanitisedT[]> {
     const results = await this.knex(this.tableName).select();
-    if (results.length === 0) {
-      throw new Error(ErrorType.NOT_FOUND);
-    }
     return results.map((result) => this.sanitiseData(result));
   }
 
   async create(
-    data: Omit<T, "id" | "updatedAt" | "createdAt">
+    data: Omit<T, "id" | "createdAt" | "updatedAt">
   ): Promise<SanitisedT> {
     const [inserted] = await this.knex(this.tableName)
       .insert(data)
@@ -55,9 +49,11 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
       .where(this.getKeys(data))
       .update(data)
       .returning("*");
+
     if (!updated) {
-      throw new Error(ErrorType.NOT_FOUND);
+      throw new Error(ErrorType.BAD_REQUEST);
     }
+
     return this.sanitiseData(updated);
   }
 
@@ -65,10 +61,7 @@ export default abstract class ModelClass<T extends {}, SanitisedT = T> {
     identifier: Partial<T>
   ): Promise<{ keys: Partial<T>; message: string }> {
     const keys = this.getKeys(identifier);
-    const affected = await this.knex(this.tableName).where(keys).delete();
-    if (affected === 0) {
-      throw new Error(ErrorType.NOT_FOUND);
-    }
-    return { keys, message: "Record deleted" };
+    const affected = await this.knex(this.tableName).where(keys).del();
+    return { keys, message: `Deleted ${affected} rows` };
   }
 }

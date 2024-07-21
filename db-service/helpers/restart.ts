@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import { COLOURS } from "./colours";
-export function restart() {
+
+//Used for restarting the service after initial configuration
+export default function restart() {
   console.log(`${COLOURS.blue}Restarting application...${COLOURS.reset}`);
 
   // Spawn a new process

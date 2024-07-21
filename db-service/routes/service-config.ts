@@ -1,87 +1,55 @@
-import { Elysia, t } from "elysia";
-
+import type Elysia from "elysia";
 import { getRuntimeConfig, setRuntimeConfig } from "../helpers/config";
-import { getDatabase, initialiseDatabase } from "../helpers/db";
-import { restart } from "../helpers/restart";
+import { ErrorType, handleError } from "../helpers/errorHandler";
+import { initialiseDatabase } from "../helpers/db";
 import { COLOURS } from "../helpers/colours";
-import { handleError } from "../helpers/errorHandler";
+import restart from "../helpers/restart";
+import { t } from "elysia";
 
-export function serviceConfigRoutes(
+export default function serviceConfigRoutes(
   app: Elysia,
   onDatabaseConfigured: () => void
 ) {
-  return (
-    app
-      //Used to configure the database during first time setup
-      .group("/service-config", (app) =>
-        app
-          .post(
-            "/init",
-            async ({ body, set }) => {
-              //Grab the current config
-              const currentConfig = getRuntimeConfig();
-              //Bad request if the config is already set. We'll have a separate update function for this to avoid accidentally overwriting the config
-              if (
-                currentConfig.dbType !== undefined &&
-                currentConfig.connectionString !== undefined
-              ) {
-                set.status = 400;
-                return "Database already configured";
-              }
+  return app.group("/service-config", (app) =>
+    app.post(
+      "/init",
+      async ({ body, set }) => {
+        //Grab the current config
+        const currentConfig = getRuntimeConfig();
 
-              setRuntimeConfig(body.dbType, body.connectionString);
-              //Initialise the database
-              try {
-                await initialiseDatabase(body.dbType, body.connectionString);
-                set.status = 200;
-                onDatabaseConfigured();
-                console.log(
-                  `${COLOURS.blue}Database cofigured with type ${COLOURS.magenta}${body.dbType}${COLOURS.blue}. ${COLOURS.yellow}Restarting...${COLOURS.reset}`
-                );
-                restart();
-              } catch (e) {
-                set.status = 500;
-                handleError(`Failed to initialise database: ${e}`);
-                return "Internal Server Error";
-              }
-            },
-            {
-              body: t.Object({
-                dbType: t.Union([
-                  t.Literal("sqlite"),
-                  t.Literal("mysql"),
-                  t.Literal("postgres"),
-                  t.Literal("sqlserver"),
-                  t.Literal("oracledb"),
-                ]),
-                connectionString: t.String(),
-              }),
-            }
-          )
-          //Returns a simple status message
-          .get("/status", () => {
-            const db = getDatabase();
-            //If the db object isn't null, the database is configured
-            if (db) {
-              return "Database is configured and database service is running";
-            }
+        //Bad request if the config is already set. There'll be a separate function for updating the config to prevent accidental overwrites
+        if (currentConfig.dbType && currentConfig.connectionString) {
+          throw new Error(ErrorType.BAD_REQUEST);
+        }
 
-            //Otherwise we assume it's waiting for the config request
-            return "Awaiting configuration request. Send a POST request to /configure with dbType and connectionString in the body. Support types are sqlite, mysql, postgres, sqlserver, oracledb. If using SQLite, connectionString should be the filepath for the sqlite file.";
-          })
-          //Returns details of the current database configuration
-          .get("/config", () => {
-            const db = getDatabase();
-            const config = getRuntimeConfig();
-            return {
-              databaseCofigured: !!db,
-              dbType: config.dbType,
-              connectionString: config.connectionString ? "****" : undefined,
-            };
-          })
-          .get("/type", () => {
-            return { type: getRuntimeConfig().dbType };
-          })
-      )
+        setRuntimeConfig(body.dbType, body.connectionString);
+
+        //Initialise the database
+
+        await initialiseDatabase(body.dbType, body.connectionString);
+        set.status = 200;
+        onDatabaseConfigured();
+        console.log(
+          `${COLOURS.blue}Database cofigured with type ${COLOURS.magenta}${body.dbType}${COLOURS.blue}. ${COLOURS.yellow}Restarting...${COLOURS.reset}`
+        );
+        //Use a timeout here to ensure the return can be sent before the service restarts
+        setTimeout(restart, 1000);
+        return {
+          message: `Database configured succesfully with type ${body.dbType}. Service will restart.`,
+        };
+      },
+      {
+        body: t.Object({
+          dbType: t.Union([
+            t.Literal("sqlite"),
+            t.Literal("mysql"),
+            t.Literal("postgres"),
+            t.Literal("sqlserver"),
+            t.Literal("oracledb"),
+          ]),
+          connectionString: t.String(),
+        }),
+      }
+    )
   );
 }

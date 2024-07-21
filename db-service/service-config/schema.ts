@@ -7,8 +7,10 @@ export const TABLE_NAMES = {
   organisation: "ws2_organisation",
   organisationMember: "ws2_organisation_member",
   config: "ws2_config",
-  oAuthProviders: "ws2_oauth_providers",
+  oAuthProvider: "ws2_oauth_provider",
+  whitelist: "ws2_whitelist",
 };
+
 export async function createSchema(knex: Knex) {
   let count = 0;
   //Create the users table
@@ -78,8 +80,9 @@ export async function createSchema(knex: Knex) {
     });
   }
 
-  if (!(await knex.schema.hasTable(TABLE_NAMES.oAuthProviders))) {
-    await knex.schema.createTable(TABLE_NAMES.oAuthProviders, (table) => {
+  //Create the oAuthProviders table
+  if (!(await knex.schema.hasTable(TABLE_NAMES.oAuthProvider))) {
+    await knex.schema.createTable(TABLE_NAMES.oAuthProvider, (table) => {
       table.string("name").primary().notNullable();
       table.string("requiredFields").notNullable();
       table.string("optionalFields").nullable();
@@ -87,7 +90,21 @@ export async function createSchema(knex: Knex) {
 
     count++;
     console.log(
-      `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.oAuthProviders} ${COLOURS.blue}created${COLOURS.reset}`
+      `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.oAuthProvider} ${COLOURS.blue}created${COLOURS.reset}`
+    );
+  }
+
+  //Create the whitelist table (used for allowing new users to register with oAuth providers)
+  if (!(await knex.schema.hasTable(TABLE_NAMES.whitelist))) {
+    await knex.schema.createTable(TABLE_NAMES.whitelist, (table) => {
+      table.string("email").primary().notNullable();
+      table.string("role").notNullable().defaultTo("user");
+      table.string("organisationId").notNullable();
+      table.string("organisationRole").nullable().defaultTo("user");
+    });
+    count++;
+    console.log(
+      `${COLOURS.blue}Table ${COLOURS.magenta}${TABLE_NAMES.whitelist} ${COLOURS.blue}created${COLOURS.reset}`
     );
   }
 

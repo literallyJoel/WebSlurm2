@@ -1,8 +1,5 @@
-import { env } from "bun";
-
-export function checkEnvVars() {
-  const requiredEnvVars = ["JWT_SECRET", "FRONTEND_URL"];
-
+export default function checkEnvVars() {
+  const requiredEnvVars = ["JWT_SECRET", "CORE_SERVICE_URL"];
   let missingEnvVars: string[] = [];
 
   requiredEnvVars.forEach((envVar) => {
@@ -13,7 +10,8 @@ export function checkEnvVars() {
 
   if (missingEnvVars.length > 0) {
     console.error(
-      `Missing required environment variables: ${missingEnvVars.join(", ")}`
+      "The following environment variables are not set:",
+      missingEnvVars.join(", ")
     );
     process.exit(1);
   }

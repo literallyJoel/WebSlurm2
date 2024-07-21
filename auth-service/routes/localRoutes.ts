@@ -1,9 +1,15 @@
-import Elysia, { t } from "elysia";
 import argon2 from "argon2";
-import { dbQuery, dbTransaction } from "../helpers/serviceCalls";
+import { dbQuery } from "../helpers/services/calls";
+import { createInitial, createUser, getUserByEmail } from "../helpers/db/users";
+import Elysia, { t } from "elysia";
+import {
+  elysiaErrorHandler,
+  ErrorType,
+  handleError,
+} from "../helpers/errorHandler";
 import jwt from "@elysiajs/jwt";
 import { v4 } from "uuid";
-import { ErrorType, handleError } from "../helpers/errorHandler";
+import { getConfigItem } from "../helpers/db/config";
 
 function generatePassword(length: number = 8) {
   const charSets = [
@@ -35,34 +41,27 @@ function generatePassword(length: number = 8) {
 
   return password;
 }
+
 export async function localRoutes(app: Elysia) {
-  return app.group("/local", (app) =>
+  return app.group("/auth", (app) =>
     app
+      .onError(({ code, error, set }) => elysiaErrorHandler(code, error, set))
       .post(
         "/register",
-        async ({ body, set }) => {
+        async ({ body }) => {
+          //Generate a random password if required
           const { password } = body;
           const _password = password ?? generatePassword();
-          const hashed = argon2.hash(_password);
-
+          const hashed = await argon2.hash(_password);
           //Create the user
-          const user = (await dbQuery("user", "create", {
+          const user = await createUser({
             ...body,
             password: hashed,
-          })) as {
-            id: string;
-            email: string;
-            name: string;
-            image: string;
-            role: "admin" | "user";
-          } | null;
+          });
 
           if (!user) {
-            set.status = 500;
-            return { error: "Internal Server Error" };
+            throw new Error("Failed to create user. Check DB Service logs.");
           }
-
-          return user;
         },
         {
           body: t.Object({
@@ -85,7 +84,6 @@ export async function localRoutes(app: Elysia) {
             ]),
           }),
         }
-        //todo figure out proper secret management
       )
       .use(
         jwt({
@@ -96,37 +94,23 @@ export async function localRoutes(app: Elysia) {
             userId: t.String({ format: "uuid" }),
             role: t.Union([t.Literal("admin"), t.Literal("user")]),
             name: t.String({ minLength: 1 }),
-            image: t.Optional(t.String()),
-            requiresReset: t.Boolean(),
+            image: t.Optional(t.String({ format: "uri" })),
           }),
         })
       )
       .post(
         "/login",
-        async ({ body, set, jwt }) => {
+        async ({ body, jwt }) => {
           const { email, password } = body;
-          const user = (await dbQuery("user", "getUserByEmail", {
-            email,
-          })) as {
-            id: string;
-            email: string;
-            name: string;
-            password?: string;
-            image?: string;
-            role: "admin" | "user";
-            requiresReset: boolean;
-          } | null;
-
+          const user = await getUserByEmail(email);
           if (!user) {
-            set.status = 401;
-            return { error: "Invalid email or password" };
+            throw new Error(ErrorType.UNAUTHORIZED);
           }
 
           //Am in two minds here about whether to let the user know they should sign in through OAuth.
           //Not convinced allowing any form of existence confirmation is a good idea.
           if (!user.password) {
-            set.status = 401;
-            return { error: "Invalid email or password" };
+            throw new Error(ErrorType.UNAUTHORIZED);
           }
 
           const isPasswordCorrect = await argon2.verify(
@@ -135,8 +119,7 @@ export async function localRoutes(app: Elysia) {
           );
 
           if (!isPasswordCorrect) {
-            set.status = 401;
-            return { error: "Invalid email or password" };
+            throw new Error(ErrorType.UNAUTHORIZED);
           }
 
           const token = await jwt.sign({
@@ -145,7 +128,6 @@ export async function localRoutes(app: Elysia) {
             role: user.role,
             name: user.name,
             image: user.image,
-            requiresReset: user.requiresReset,
           });
 
           return { token };
@@ -157,66 +139,24 @@ export async function localRoutes(app: Elysia) {
           }),
         }
       )
+      .onError(({ code, error, set }) => elysiaErrorHandler(code, error, set))
       .post(
         "/initial",
-        async ({ body, set,  }) => {
-          const isSetup = (await dbQuery("config", "getOne", {
-            key: "setupComplete",
-          })) as {
-            key: "setupComplete";
-            value: "true" | "false";
-          } | null;
-
-          console.log(isSetup);
+        async ({ body }) => {
+          const isSetup = await getConfigItem("setupComplete");
           if (isSetup && isSetup.value === "true") {
-            set.status = 404;
-            return { message: "Not Found" };
+            //We make this route non-existent if the setup is complete
+            throw new Error(ErrorType.NOT_FOUND);
           }
 
-          const { email, name, image, password, organisationName } = body;
+          const { password } = body;
           const hashed = await argon2.hash(password);
 
-          const result = await dbTransaction([
-            {
-              order: 1,
-              model: "user",
-              operation: "create",
-              params: {
-                email,
-                name,
-                image,
-                password: hashed,
-                role: "admin",
-              },
-              resultKey: "user",
-              return: ["id"],
-            },
-            {
-              order: 2,
-              model: "organisation",
-              operation: "create",
-              params: {
-                name: organisationName,
-              },
-              resultKey: "organisation",
-              return: ["id"],
-            },
-            {
-              order: 3,
-              model: "organisationMember",
-              operation: "create",
-              params: {
-                organisationId: { $ref: "organisation", field: "id" },
-                userId: { $ref: "user", field: "id" },
-                role: "admin",
-              },
-              return: ["role"],
-            },
-          ]);
-
+          const result = await createInitial({ ...body, password: hashed });
           if (!result) {
-            set.status = 500;
-            return { error: "Internal Server Error" };
+            throw new Error(
+              "Failed to create initial user. Check DB Service logs."
+            );
           }
 
           return result;
@@ -235,23 +175,22 @@ export async function localRoutes(app: Elysia) {
           }),
         }
       )
+      .onError(({ code, error, set }) => {
+        //We override the general error handling to always return a 401
+        return handleError(error, ErrorType.UNAUTHORIZED);
+      })
       .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
       .post(
         "/verify",
-        async ({ body, jwt, set }) => {
+        async ({ body, jwt }) => {
           const { token } = body;
-          try {
-            const decoded = await jwt.verify(token);
-            if (!decoded) {
-              set.status = 401;
-              return { error: "Unauthorized" };
-            }
-            return decoded;
-          } catch (e) {
-            console.error(e);
-            set.status = 401;
-            return handleError(e, ErrorType.UNAUTHORIZED);
+
+          const decoded = await jwt.verify(token);
+          if (!decoded) {
+            throw new Error(ErrorType.UNAUTHORIZED);
           }
+
+          return decoded;
         },
         {
           body: t.Object({

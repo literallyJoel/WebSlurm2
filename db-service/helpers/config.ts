@@ -2,8 +2,8 @@ let runtimeConfig: { dbType: string; connectionString: string } | null = null;
 
 export function getRuntimeConfig() {
   return (
-    runtimeConfig || {
-      dbType: process.env.DATABASE_TYPE,
+    runtimeConfig ?? {
+      dbType: process.env.DB_TYPE,
       connectionString: process.env.DATABASE_CONNECTION_STRING,
     }
   );
@@ -19,4 +19,3 @@ export async function setRuntimeConfig(
     `DATABASE_TYPE=${dbType}\nDATABASE_CONNECTION_STRING=${connectionString}`
   );
 }
-

@@ -2,18 +2,12 @@ import type { Knex } from "knex";
 import { getDatabase } from "./db";
 import { TABLE_NAMES } from "../service-config/schema";
 import { ErrorType } from "./errorHandler";
+import type { ModelName, OperationName } from "./models";
 
 interface TransactionOperation {
   order: number;
-  model: "user" | "organisation" | "organisationMember" | "config";
-  operation:
-    | "getOne"
-    | "getMany"
-    | "getAll"
-    | "create"
-    | "update"
-    | "delete"
-    | "getUserByEmail";
+  model: ModelName;
+  operation: OperationName;
   params: any | { $ref: string; field: string };
   resultKey?: string;
   return?: string[];
@@ -54,15 +48,8 @@ function resolveReferences(params: any, results: Record<string, any[]>): any {
 }
 async function performOperation(
   tx: Knex.Transaction,
-  model: "user" | "organisation" | "organisationMember" | "config",
-  operation:
-    | "getOne"
-    | "getMany"
-    | "getAll"
-    | "create"
-    | "update"
-    | "delete"
-    | "getUserByEmail",
+  model: ModelName,
+  operation: OperationName,
   params: any
 ) {
   if (!TABLE_NAMES[model]) {
@@ -71,26 +58,14 @@ async function performOperation(
   switch (operation) {
     case "getOne": {
       const result = await tx(TABLE_NAMES[model]).where(params).first();
-      if (!result) {
-        console.log("It's GetOne");
-        throw new Error(ErrorType.NOT_FOUND);
-      }
       return result;
     }
     case "getMany": {
       const result = await tx(TABLE_NAMES[model]).where(params).select();
-      if (result.length === 0) {
-        console.log("It's GetMany");
-        throw new Error(ErrorType.NOT_FOUND);
-      }
       return result;
     }
     case "getAll": {
       const result = await tx(TABLE_NAMES[model]).select();
-      if (result.length === 0) {
-        console.log("It's GetAll");
-        throw new Error(ErrorType.NOT_FOUND);
-      }
       return result;
     }
     case "create":
@@ -109,10 +84,6 @@ async function performOperation(
       const user = await tx(TABLE_NAMES.user)
         .where("email", params.email)
         .first();
-      if (!user) {
-        console.log("It's GetUserByEmail");
-        throw new Error(ErrorType.NOT_FOUND);
-      }
       return user;
     default:
       throw new Error(ErrorType.BAD_REQUEST);

@@ -1,116 +1,194 @@
-import { Elysia, redirect } from "elysia";
-import { dbQuery } from "../helpers/serviceCalls";
+import type Elysia from "elysia";
+import { getEnabledProviders } from "../helpers/db/providers";
 import jwt from "@elysiajs/jwt";
 import { oauth2 } from "elysia-oauth2";
-import { v4 } from "uuid";
+import { ErrorType, handleError } from "../helpers/errorHandler";
 import Providers, { parseProfile } from "../helpers/oauth/providers";
+import { createUser, getUserByEmail, updateUser } from "../helpers/db/users";
+import { v4 } from "uuid";
+import { t } from "elysia";
+import { isUserWhitelisted, whitelistUser } from "../helpers/db/whitelist";
 
-//todo: test non-google providers if possible.
 export async function oAuthRoutes(app: Elysia) {
-  const enabledProviders = (await dbQuery("oAuthProvider", "getAll", {})) as {
-    name: string;
-    requiredFields: string;
-    optionalFields?: string;
-  }[];
-
-  const parsedProviders = enabledProviders.map((provider) => ({
-    name: provider.name,
-    requiredFields: JSON.parse(provider.requiredFields) as string[],
-    optionalFields: provider.optionalFields
-      ? (JSON.parse(provider.optionalFields) as string[])
-      : undefined,
-  }));
+  const enabledProviders = await getEnabledProviders();
 
   const providers: Record<string, string[]> = {};
-  for (const provider of parsedProviders) {
+  for (const provider of enabledProviders) {
+    //todo figure out the format for the optional fields
     providers[provider.name] = provider.requiredFields;
   }
 
-  return app
-    .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
-    .use(oauth2(providers))
-    .get("/auth/:provider", async ({ oauth2, params: { provider }, set }) => {
-      const requestedProvider =
-        provider.charAt(0).toUpperCase() + provider.slice(1);
-      if (!providers[requestedProvider]) {
-        set.status = 400;
-        return "Invalid provider";
-      }
-      return oauth2.redirect(
-        //We ignore the type error here because we're doing it dynamically, but we check it to ensure its allowed
-        //@ts-ignore
-        requestedProvider,
-        {
-          scopes: Providers[requestedProvider].scopes,
-        }
-      );
-    })
-    .get(
-      "/auth/callback/:provider",
-      async ({
-        oauth2,
-        jwt,
-        set,
-        cookie: { ws2_token },
-        params: { provider },
-      }) => {
+  return app.group("/auth", (app) =>
+    app
+      .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
+      .use(oauth2(providers))
+      .get("/:provider", async ({ oauth2, params: { provider }, set }) => {
+        //Format the provider to ensure uppercase first letter
         const requestedProvider =
           provider.charAt(0).toUpperCase() + provider.slice(1);
+
+        //Ensure the provider is valid
         if (!providers[requestedProvider]) {
-          set.status = 400;
-          return "Invalid provider";
+          const error = handleError(
+            new Error("Invalid Provider"),
+            ErrorType.BAD_REQUEST
+          );
+          set.status = error.status;
+          return error;
         }
 
-        //@ts-ignore
-        const { accessToken } = await oauth2.authorize(requestedProvider);
-        const response = await fetch(Providers[requestedProvider].tokenUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        const providerData = parseProfile(
-          await response.json(),
-          requestedProvider
+        return oauth2.redirect(
+          //We ignore the type error here because we're doing it dynamically so it complains
+          //But we do a manual check to ensure it's valid
+          //@ts-ignore
+          requestedProvider,
+          {
+            scopes: Providers[requestedProvider].scopes,
+          }
         );
+      })
+      .get(
+        "/callback/:provider",
+        async ({ oauth2, jwt, set, params: { provider } }) => {
+          const requestedProvider =
+            provider.charAt(0).toUpperCase() + provider.slice(1);
 
-        if (!providerData) {
-          set.status = 500;
-          return { error: "Internal Server Error" };
+          if (!providers[requestedProvider]) {
+            const error = handleError(
+              new Error("Invalid Provider"),
+              ErrorType.BAD_REQUEST
+            );
+            set.status = error.status;
+            return error;
+          }
+
+          const { accessToken } = await oauth2.authorize(requestedProvider);
+          const response = await fetch(Providers[requestedProvider].tokenUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+
+          const providerData = parseProfile(
+            await response.json(),
+            requestedProvider
+          );
+
+          if (!providerData) {
+            const error = handleError(
+              new Error("Failed to get profile data"),
+              ErrorType.BAD_REQUEST
+            );
+            set.status = error.status;
+            return error;
+          }
+
+          const user = await getUserByEmail(providerData.email);
+
+          if (!user) {
+            const whitelisted = await isUserWhitelisted(providerData.email);
+            if (!whitelisted) {
+              const error = handleError(
+                new Error("User not whitelisted"),
+                ErrorType.UNAUTHORIZED
+              );
+              set.status = error.status;
+              return error;
+            }
+
+            const user = await createUser({
+              email: providerData.email,
+              name: providerData.name,
+              role: whitelisted.role,
+              image: providerData.image,
+              organisationId: whitelisted.organisationId,
+              organisationRole: whitelisted.organisationRole,
+              emailVerified: providerData.emailVerified,
+            });
+
+            if (!user) {
+              const error = handleError(
+                new Error("Failed to create user"),
+                ErrorType.INTERNAL_SERVER_ERROR
+              );
+              set.status = error.status;
+              return error;
+            }
+
+            const token = await jwt.sign({
+              tokenId: v4(),
+              userId: user.id,
+              role: user.role,
+              name: user.name,
+              image: providerData.image,
+            });
+
+            return { token };
+          } else {
+            await updateUser({
+              id: user.id,
+              image: providerData.image,
+              emailVerified: providerData.emailVerified,
+            });
+
+            const token = await jwt.sign({
+              tokenId: v4(),
+              userId: user.id,
+              role: user.role,
+              name: user.name,
+              image: providerData.image,
+            });
+
+            return { token };
+          }
         }
+      )
+      .post(
+        "/whitelist",
+        async ({ body, headers: { authorization }, set, jwt }) => {
+          //Todo figure out better handling of auth status
+          if (!authorization) {
+            const error = handleError(
+              new Error("Unauthorized"),
+              ErrorType.UNAUTHORIZED
+            );
+            set.status = error.status;
+            return error;
+          }
 
-        let user = await dbQuery("user", "getUserByEmail", {
-          email: providerData.email,
-        });
+          const token = authorization.split(" ")[1];
+          const decoded = await jwt.verify(token);
+          if (!decoded) {
+            const error = handleError(
+              new Error("Unauthorized"),
+              ErrorType.UNAUTHORIZED
+            );
+            set.status = error.status;
+            return error;
+          }
 
-        if (!user) {
-          set.status = 401;
-          return {
-            error:
-              "You have not been given access to this service. Please contact the administrator.",
-          };
+          const user = await whitelistUser(body);
+          if (!user) {
+            const error = handleError(
+              new Error("Failed to whitelist user"),
+              ErrorType.INTERNAL_SERVER_ERROR
+            );
+            set.status = error.status;
+            return error;
+          }
+
+          return { message: "User whitelisted successfully" };
+        },
+        {
+          body: t.Object({
+            email: t.String(),
+            role: t.Union([t.Literal("admin"), t.Literal("user")]),
+            organisationId: t.String(),
+            organisationRole: t.Union([
+              t.Literal("admin"),
+              t.Literal("user"),
+              t.Literal("moderator"),
+            ]),
+          }),
         }
-
-        await dbQuery("user", "update", {
-          id: user.id,
-          image: providerData.image,
-          emailVerified: providerData.emailVerified,
-        });
-
-        const token = await jwt.sign({
-          tokenId: v4(),
-          userId: user.id,
-          role: user.role,
-          name: user.name,
-          image: providerData.image,
-          requiresReset: 0,
-        });
-
-        ws2_token.value = token;
-
-        return redirect(`${process.env.FRONTEND_URL}`);
-      }
-    )
-    .get("/auth/logout", async ({ cookie: { ws2_token } }) => {
-      ws2_token.value = "";
-      return redirect(`${process.env.FRONTEND_URL}`);
-    });
+      )
+  );
 }
