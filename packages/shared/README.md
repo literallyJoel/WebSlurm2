@@ -1,4 +1,4 @@
-# webslurm2
+# shared
 
 To install dependencies:
 

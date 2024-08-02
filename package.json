@@ -1,0 +1,25 @@
+{
+  "name": "webslurm2",
+  "type": "module",
+  "scripts": {
+    "start": "bun run start:services & bun run start:frontend",
+    "start:services": "bun run start:auth & bun run start:db & bun run start:core",
+    "start:auth": "bun run --cwd packages/auth-service src/index.ts",
+    "start:db": "bun run --cwd packages/db-service src/index.ts",
+    "start:core": "bun run --cwd packages/core-service src/index.ts",
+    "start:frontend": "bun run --cwd packages/frontend dev"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/uuid": "^10.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "uuid": "^10.0.0"
+  }
+}
