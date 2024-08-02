@@ -1,15 +1,7 @@
-# webslurm2
+## WebSlurm 2
 
-To install dependencies:
+WebSlurm 2 is an easy-to-use web interface for scheduling and monitoring [Slurm](https://slurm.schedmd.com/) jobs.
 
-```bash
-bun install
-```
+Work in Progress.
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.1.12. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+Requires [Bun](bun.sh).
