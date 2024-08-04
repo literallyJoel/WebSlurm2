@@ -1,10 +1,10 @@
 import { Store } from "@tanstack/react-store";
-import { CreateUserObject } from "@webslurm2/shared";
+import { CreateInitialObject } from "@webslurm2/shared";
 
 interface ProviderInfo {
   name: string;
-  clientId: string;
-  clientSecret: string;
+  clientId?: string;
+  clientSecret?: string;
 }
 const setupStore = new Store({
   user: {
@@ -12,7 +12,7 @@ const setupStore = new Store({
     email: "",
     password: "",
     organisationName: "",
-  } as Omit<CreateUserObject, "role" | "organisationRole" | "organisationId">,
+  } as CreateInitialObject,
   providerInfo: [] as ProviderInfo[],
 });
 

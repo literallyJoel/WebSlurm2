@@ -38,3 +38,23 @@ export const CreateUserSchema = t.Object({
     t.Literal("moderator"),
   ]),
 });
+
+export const CreateInitialSchema = t.Object({
+  email: t.String({ format: "email" }),
+  name: t.String({ minLength: 1 }),
+  image: t.Optional(t.String()),
+  password: t.String({
+    minLength: 8,
+    pattern:
+      "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
+  }),
+  organisationName: t.String({ minLength: 1 }),
+});
+
+export const TokenDataSchema = t.Object({
+  tokenId: t.String({ format: "uuid" }),
+  userId: t.String({ format: "uuid" }),
+  role: t.Union([t.Literal("admin"), t.Literal("user")]),
+  name: t.String({ minLength: 1 }),
+  image: t.Optional(t.String({ format: "uri" })),
+});

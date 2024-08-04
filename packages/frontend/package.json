@@ -20,10 +20,12 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.21",
+    "js-cookie": "^3.0.5",
     "lucide-react": "^0.424.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.1",
+    "react-toastify": "^10.0.5",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.23.8"
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@tanstack/router-devtools": "^1.46.2",
     "@tanstack/router-plugin": "^1.45.13",
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^22.1.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

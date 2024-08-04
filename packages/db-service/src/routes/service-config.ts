@@ -1,7 +1,7 @@
 import type Elysia from "elysia";
 import { getRuntimeConfig, setRuntimeConfig } from "../helpers/config";
 import { elysiaErrorHandler, ErrorType } from "@webslurm2/shared";
-import { initialiseDatabase } from "../helpers/db";
+import { getDatabase, initialiseDatabase } from "../helpers/db";
 import { COLOURS } from "@webslurm2/shared";
 import { restart } from "@webslurm2/shared";
 import { t } from "elysia";
@@ -61,5 +61,15 @@ export default function serviceConfigRoutes(app: Elysia) {
           }),
         }
       )
+      //temp
+      .get("/reset", async () => {
+        const db = getDatabase();
+        await db?.destroy();
+        await initialiseDatabase(
+          getRuntimeConfig().dbType!,
+          getRuntimeConfig().connectionString!
+        );
+        return { message: "Database destroyed successfully." };
+      })
   );
 }

@@ -1,14 +1,22 @@
 import argon2 from "argon2";
-
-import { createInitial, createUser, getUserByEmail } from "../helpers/db/users";
+import jwt from "jsonwebtoken";
+import {
+  createInitial,
+  createUser,
+  getUserByEmail,
+  getUserById,
+} from "../helpers/db/users";
 import Elysia, { t } from "elysia";
 import {
+  CreateInitialSchema,
   CreateUserSchema,
   elysiaErrorHandler,
   ErrorType,
   handleError,
+  TokenDataSchema,
+  User,
 } from "@webslurm2/shared";
-import jwt from "@elysiajs/jwt";
+
 import { v4 } from "uuid";
 import { getConfigItem } from "../helpers/db/config";
 
@@ -43,6 +51,22 @@ function generatePassword(length: number = 8) {
   return password;
 }
 
+function signToken(user: User) {
+  return jwt.sign(
+    {
+      tokenId: v4(),
+      userId: user.id,
+      role: user.role,
+      name: user.name,
+      image: user.image,
+    },
+    process.env.JWT_SECRET!,
+    {
+      expiresIn: "1d",
+    }
+  );
+}
+
 export async function localRoutes(app: Elysia) {
   return app.group("/auth", (app) =>
     app
@@ -68,22 +92,9 @@ export async function localRoutes(app: Elysia) {
           body: CreateUserSchema,
         }
       )
-      .use(
-        jwt({
-          name: "jwt",
-          secret: process.env.JWT_SECRET!,
-          schema: t.Object({
-            tokenId: t.String({ format: "uuid" }),
-            userId: t.String({ format: "uuid" }),
-            role: t.Union([t.Literal("admin"), t.Literal("user")]),
-            name: t.String({ minLength: 1 }),
-            image: t.Optional(t.String({ format: "uri" })),
-          }),
-        })
-      )
       .post(
         "/login",
-        async ({ body, jwt }) => {
+        async ({ body }) => {
           const { email, password } = body;
           const user = await getUserByEmail(email);
           if (!user) {
@@ -105,14 +116,7 @@ export async function localRoutes(app: Elysia) {
             throw new Error(ErrorType.UNAUTHORIZED);
           }
 
-          const token = await jwt.sign({
-            tokenId: v4(),
-            userId: user.id,
-            role: user.role,
-            name: user.name,
-            image: user.image,
-          });
-
+          const token = signToken(user);
           return { token };
         },
         {
@@ -142,44 +146,41 @@ export async function localRoutes(app: Elysia) {
             );
           }
 
-          return result;
+          //Grab the newly created user
+          const user = await getUserById(result.user[0].id);
+          if (!user) {
+            throw new Error(
+              "Failed to get newly created user. Check DB Service logs."
+            );
+          }
+
+          //Create a token for the user
+          const token = signToken(user);
+
+          return { token, result };
         },
         {
-          body: t.Object({
-            email: t.String({ format: "email" }),
-            name: t.String({ minLength: 1 }),
-            image: t.Optional(t.String()),
-            password: t.String({
-              minLength: 8,
-              pattern:
-                "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
-            }),
-            organisationName: t.String({ minLength: 1 }),
-          }),
+          body: CreateInitialSchema,
         }
       )
       .onError(({ code, error, set }) => {
         //We override the general error handling to always return a 401
         return handleError(error, ErrorType.UNAUTHORIZED);
       })
-      .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
-      .post(
-        "/verify",
-        async ({ body, jwt }) => {
-          const { token } = body;
-
-          const decoded = await jwt.verify(token);
-          if (!decoded) {
-            throw new Error(ErrorType.UNAUTHORIZED);
-          }
-
-          return decoded;
-        },
-        {
-          body: t.Object({
-            token: t.String(),
-          }),
+      .get("/verify", async ({ headers: { authorization } }) => {
+        if (!authorization) {
+          throw new Error(ErrorType.UNAUTHORIZED);
         }
-      )
+        const token = authorization.split(" ")[1];
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+
+        console.log("decoded", decoded);
+        if (!decoded) {
+          throw new Error(ErrorType.UNAUTHORIZED);
+        }
+
+        return decoded;
+      })
   );
 }

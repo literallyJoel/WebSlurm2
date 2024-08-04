@@ -1,9 +1,18 @@
-import { type Static } from 'elysia';
-import { CreateUserSchema, ModelNameSchema, OperationNameSchema } from './schemas';
+import { type Static } from "elysia";
+import {
+  CreateInitialSchema,
+  CreateUserSchema,
+  ModelNameSchema,
+  OperationNameSchema,
+  TokenDataSchema,
+} from "./schemas";
 
 export type ModelName = Static<typeof ModelNameSchema>;
 export type OperationName = Static<typeof OperationNameSchema>;
 export type CreateUserObject = Static<typeof CreateUserSchema>;
+export type CreateInitialObject = Static<typeof CreateInitialSchema>;
+export type TokenData = Static<typeof TokenDataSchema>;
+
 export type TransactionOperation = {
   order: number;
   model: ModelName;
@@ -35,13 +44,12 @@ export type User = {
   email: string;
   name: string;
   image?: string;
-  role: 'admin' | 'user';
+  role: "admin" | "user";
 };
 
 export type WhitelistUser = {
   email: string;
-  role: 'admin' | 'user';
+  role: "admin" | "user";
   organisationId: string;
-  organisationRole: 'admin' | 'moderator' | 'user';
+  organisationRole: "admin" | "moderator" | "user";
 };
-

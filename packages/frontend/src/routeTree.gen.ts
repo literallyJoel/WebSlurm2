@@ -13,8 +13,11 @@ import { createFileRoute } from '@tanstack/react-router'
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as Setup5Import } from './routes/setup/5'
+import { Route as Setup4Import } from './routes/setup/4'
 import { Route as Setup3Import } from './routes/setup/3'
 import { Route as Setup2Import } from './routes/setup/2'
+import { Route as AuthLoginImport } from './routes/auth/login'
 
 // Create Virtual Routes
 
@@ -39,6 +42,16 @@ const SetupIndexLazyRoute = SetupIndexLazyImport.update({
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/setup/index.lazy').then((d) => d.Route))
 
+const Setup5Route = Setup5Import.update({
+  path: '/setup/5',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const Setup4Route = Setup4Import.update({
+  path: '/setup/4',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const Setup3Route = Setup3Import.update({
   path: '/setup/3',
   getParentRoute: () => rootRoute,
@@ -46,6 +59,11 @@ const Setup3Route = Setup3Import.update({
 
 const Setup2Route = Setup2Import.update({
   path: '/setup/2',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AuthLoginRoute = AuthLoginImport.update({
+  path: '/auth/login',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -67,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutLazyImport
       parentRoute: typeof rootRoute
     }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginImport
+      parentRoute: typeof rootRoute
+    }
     '/setup/2': {
       id: '/setup/2'
       path: '/setup/2'
@@ -79,6 +104,20 @@ declare module '@tanstack/react-router' {
       path: '/setup/3'
       fullPath: '/setup/3'
       preLoaderRoute: typeof Setup3Import
+      parentRoute: typeof rootRoute
+    }
+    '/setup/4': {
+      id: '/setup/4'
+      path: '/setup/4'
+      fullPath: '/setup/4'
+      preLoaderRoute: typeof Setup4Import
+      parentRoute: typeof rootRoute
+    }
+    '/setup/5': {
+      id: '/setup/5'
+      path: '/setup/5'
+      fullPath: '/setup/5'
+      preLoaderRoute: typeof Setup5Import
       parentRoute: typeof rootRoute
     }
     '/setup/': {
@@ -96,8 +135,11 @@ declare module '@tanstack/react-router' {
 export const routeTree = rootRoute.addChildren({
   IndexLazyRoute,
   AboutLazyRoute,
+  AuthLoginRoute,
   Setup2Route,
   Setup3Route,
+  Setup4Route,
+  Setup5Route,
   SetupIndexLazyRoute,
 })
 
@@ -111,8 +153,11 @@ export const routeTree = rootRoute.addChildren({
       "children": [
         "/",
         "/about",
+        "/auth/login",
         "/setup/2",
         "/setup/3",
+        "/setup/4",
+        "/setup/5",
         "/setup/"
       ]
     },
@@ -122,11 +167,20 @@ export const routeTree = rootRoute.addChildren({
     "/about": {
       "filePath": "about.lazy.tsx"
     },
+    "/auth/login": {
+      "filePath": "auth/login.tsx"
+    },
     "/setup/2": {
       "filePath": "setup/2.tsx"
     },
     "/setup/3": {
       "filePath": "setup/3.tsx"
+    },
+    "/setup/4": {
+      "filePath": "setup/4.tsx"
+    },
+    "/setup/5": {
+      "filePath": "setup/5.tsx"
     },
     "/setup/": {
       "filePath": "setup/index.lazy.tsx"

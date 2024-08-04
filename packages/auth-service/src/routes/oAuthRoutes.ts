@@ -1,8 +1,8 @@
 import type Elysia from "elysia";
 import { getEnabledProviders } from "../helpers/db/providers";
-import jwt from "@elysiajs/jwt";
+import jwt from "jsonwebtoken";
 import { oauth2 } from "elysia-oauth2";
-import { ErrorType, handleError } from "@webslurm2/shared";
+import { ErrorType, handleError, User } from "@webslurm2/shared";
 import Providers, { parseProfile } from "../helpers/oauth/providers";
 import { createUser, getUserByEmail, updateUser } from "../helpers/db/users";
 import { v4 } from "uuid";
@@ -18,9 +18,27 @@ export async function oAuthRoutes(app: Elysia) {
     providers[provider.name] = provider.requiredFields;
   }
 
+  function signToken(
+    user: User,
+    providerData: NonNullable<ReturnType<typeof parseProfile>>
+  ) {
+    return jwt.sign(
+      {
+        tokenId: v4(),
+        userId: user.id,
+        role: user.role,
+        name: user.name,
+        image: providerData.image,
+      },
+      process.env.JWT_SECRET!,
+      {
+        expiresIn: "1d",
+      }
+    );
+  }
+
   return app.group("/auth", (app) =>
     app
-      .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
       .use(oauth2(providers))
       .get("/:provider", async ({ oauth2, params: { provider }, set }) => {
         //Format the provider to ensure uppercase first letter
@@ -49,7 +67,7 @@ export async function oAuthRoutes(app: Elysia) {
       })
       .get(
         "/callback/:provider",
-        async ({ oauth2, jwt, set, params: { provider } }) => {
+        async ({ oauth2, set, params: { provider } }) => {
           const requestedProvider =
             provider.charAt(0).toUpperCase() + provider.slice(1);
 
@@ -113,13 +131,7 @@ export async function oAuthRoutes(app: Elysia) {
               return error;
             }
 
-            const token = await jwt.sign({
-              tokenId: v4(),
-              userId: user.id,
-              role: user.role,
-              name: user.name,
-              image: providerData.image,
-            });
+            const token = signToken(user, providerData);
 
             return { token };
           } else {
@@ -129,21 +141,14 @@ export async function oAuthRoutes(app: Elysia) {
               emailVerified: providerData.emailVerified,
             });
 
-            const token = await jwt.sign({
-              tokenId: v4(),
-              userId: user.id,
-              role: user.role,
-              name: user.name,
-              image: providerData.image,
-            });
-
+            const token = signToken(user, providerData);
             return { token };
           }
         }
       )
       .post(
         "/whitelist",
-        async ({ body, headers: { authorization }, set, jwt }) => {
+        async ({ body, headers: { authorization }, set }) => {
           //Todo figure out better handling of auth status
           if (!authorization) {
             const error = handleError(
@@ -155,7 +160,7 @@ export async function oAuthRoutes(app: Elysia) {
           }
 
           const token = authorization.split(" ")[1];
-          const decoded = await jwt.verify(token);
+          const decoded = jwt.verify(token, process.env.JWT_SECRET!);
           if (!decoded) {
             const error = handleError(
               new Error("Unauthorized"),

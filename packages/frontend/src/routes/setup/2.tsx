@@ -73,6 +73,10 @@ function PasswordInput() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
   });
 
   async function handleSubmit(data: z.infer<typeof formSchema>) {

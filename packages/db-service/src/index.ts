@@ -17,17 +17,6 @@ import allowedDbTypes from "./constants/allowedDbTypes";
 
 checkEnvVars();
 
-if (process.env.DATABASE_TYPE && process.env.DATABASE_CONNECTION_STRING) {
-  setRuntimeConfig(
-    process.env.DATABASE_TYPE,
-    process.env.DATABASE_CONNECTION_STRING
-  );
-  initialiseDatabase(
-    process.env.DATABASE_TYPE,
-    process.env.DATABASE_CONNECTION_STRING
-  );
-}
-
 //exported for tests
 export const app = new Elysia()
   .use((app) => serviceConfigRoutes(app))
@@ -114,7 +103,23 @@ export const app = new Elysia()
   })
   .listen(
     process.env.PORT ? Number.parseInt(process.env.PORT) : 5160,
-    (server) => {
+    async (server) => {
+      if (process.env.DATABASE_TYPE && process.env.DATABASE_CONNECTION_STRING) {
+        if (!allowedDbTypes.includes(process.env.DATABASE_TYPE)) {
+          console.error(
+            `Invalid database type provided: ${process.env.DATABASE_TYPE}. Valid types are: ${allowedDbTypes.join(", ")}`
+          );
+          process.exit(1);
+        }
+        setRuntimeConfig(
+          process.env.DATABASE_TYPE,
+          process.env.DATABASE_CONNECTION_STRING
+        );
+        await initialiseDatabase(
+          process.env.DATABASE_TYPE,
+          process.env.DATABASE_CONNECTION_STRING
+        );
+      }
       console.log(
         `${COLOURS.green}DatabaseService running on ${COLOURS.magenta}${server.url}${COLOURS.reset}`
       );
