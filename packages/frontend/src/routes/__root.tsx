@@ -1,10 +1,8 @@
 import { createRootRoute, redirect, Outlet } from "@tanstack/react-router";
 import { queryClient } from "@/main";
 import { isSetupComplete } from "@/api/setup";
-import { verifyToken } from "@/api/auth";
-
-import Cookies from "js-cookie";
-import appStore from "@/stores/appStore";
+import isAuthenticated from "@/helpers/isAuthenticated";
+import { Link } from "@tanstack/react-router";
 
 const isSetupCompleted = async () => {
   const result = await queryClient.fetchQuery({
@@ -12,35 +10,6 @@ const isSetupCompleted = async () => {
     queryFn: isSetupComplete,
   });
   return result?.isSetup;
-};
-
-const isAuthenticated = async () => {
-  const token = Cookies.get("ws2_token");
-
-  if (!token) return false;
-
-  try {
-    const tokenData = await queryClient.fetchQuery({
-      queryKey: ["verifyToken"],
-      queryFn: () => verifyToken(token),
-    });
-
-    appStore.setState((state) => {
-      return {
-        ...state,
-        tokenData,
-      };
-    });
-    return true;
-  } catch (e) {
-    appStore.setState((state) => {
-      return {
-        ...state,
-        tokenData: null,
-      };
-    });
-    return false;
-  }
 };
 
 export const Route = createRootRoute({
@@ -63,6 +32,16 @@ export const Route = createRootRoute({
   },
   component: () => (
     <main className="flex min-h-screen flex-col items-center bg-slate-900 text-white">
+      {!location.pathname.includes("/setup") && (
+        <div className="w-full flex flex-row p-4">
+          <Link
+            className="text-2xl font-bold"
+            to={location.pathname.includes("/auth") ? "" : "/"}
+          >
+            Web<span className="text-fuchsia-600">Slurm</span>
+          </Link>
+        </div>
+      )}
       <Outlet />
     </main>
   ),

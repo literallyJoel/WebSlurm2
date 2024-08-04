@@ -13,3 +13,22 @@ export async function verifyToken(token: string): Promise<TokenData> {
 
   return await response.json();
 }
+
+export async function login(email: string, password: string) {
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+
+  if (!response.ok) {
+    return Promise.reject("Failed to login");
+  }
+
+  return true;
+}

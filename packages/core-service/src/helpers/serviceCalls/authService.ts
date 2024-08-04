@@ -59,3 +59,22 @@ export async function verifyToken(
 
   return await response.json();
 }
+
+export async function login(email: string, password: string) {
+  const response = await fetch(`${authServiceUrl}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+
+  if (!response.ok) {
+    return undefined;
+  }
+
+  return (await response.json()) as { token: string };
+}
