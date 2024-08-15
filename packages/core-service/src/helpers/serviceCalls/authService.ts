@@ -1,6 +1,7 @@
 import {
   authServiceUrl,
   CreateInitialObject,
+  CreateUserObject,
   TokenData,
 } from "@webslurm2/shared";
 interface CreateInitialResponse {
@@ -77,4 +78,18 @@ export async function login(email: string, password: string) {
   }
 
   return (await response.json()) as { token: string };
+}
+
+export async function register(input: CreateUserObject) {
+  const response = await fetch(`${authServiceUrl}/auth/register`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    return undefined;
+  }
 }

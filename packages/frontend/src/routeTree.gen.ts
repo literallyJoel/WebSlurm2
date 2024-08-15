@@ -18,6 +18,7 @@ import { Route as Setup4Import } from './routes/setup/4'
 import { Route as Setup3Import } from './routes/setup/3'
 import { Route as Setup2Import } from './routes/setup/2'
 import { Route as AuthLoginImport } from './routes/auth/login'
+import { Route as AdminSettingsImport } from './routes/admin/settings'
 
 // Create Virtual Routes
 
@@ -67,6 +68,11 @@ const AuthLoginRoute = AuthLoginImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const AdminSettingsRoute = AdminSettingsImport.update({
+  path: '/admin/settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -83,6 +89,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsImport
       parentRoute: typeof rootRoute
     }
     '/auth/login': {
@@ -135,6 +148,7 @@ declare module '@tanstack/react-router' {
 export const routeTree = rootRoute.addChildren({
   IndexLazyRoute,
   AboutLazyRoute,
+  AdminSettingsRoute,
   AuthLoginRoute,
   Setup2Route,
   Setup3Route,
@@ -153,6 +167,7 @@ export const routeTree = rootRoute.addChildren({
       "children": [
         "/",
         "/about",
+        "/admin/settings",
         "/auth/login",
         "/setup/2",
         "/setup/3",
@@ -166,6 +181,9 @@ export const routeTree = rootRoute.addChildren({
     },
     "/about": {
       "filePath": "about.lazy.tsx"
+    },
+    "/admin/settings": {
+      "filePath": "admin/settings.tsx"
     },
     "/auth/login": {
       "filePath": "auth/login.tsx"

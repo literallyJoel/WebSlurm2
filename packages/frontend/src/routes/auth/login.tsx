@@ -1,4 +1,4 @@
-import isAuthenticated from "@/helpers/isAuthenticated";
+import { isAuthenticated } from "@/helpers/authentication";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";

@@ -1,6 +1,6 @@
-import { elysiaErrorHandler, ErrorType } from "@webslurm2/shared";
+import { CreateUserSchema, elysiaErrorHandler, ErrorType } from "@webslurm2/shared";
 import Elysia, { t } from "elysia";
-import { login, verifyToken } from "../helpers/serviceCalls/authService";
+import { login, register, verifyToken } from "../helpers/serviceCalls/authService";
 
 export function authRoutes(app: Elysia<any>) {
   return app.group("/auth", (app) =>
@@ -41,5 +41,13 @@ export function authRoutes(app: Elysia<any>) {
           }),
         }
       )
+      .post("/register", async ({ body, headers: { authorization } }) => {
+        if(!authorization || authorization.split(" ")[1] === "" || !authorization.split(" ")[1]){
+          throw new Error(ErrorType.UNAUTHORIZED);
+        }
+        return await register(body);
+      },{
+        body: CreateUserSchema
+      })
   );
 }
